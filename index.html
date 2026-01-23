@@ -1044,6 +1044,10 @@
         let showMACD = false;
         let showCCI = false;
         
+        // Subscription tracking
+        let currentTickSubscription = null;
+        let currentCandleSubscription = null;
+        
         // Chart constants
         const MIN_VISIBLE_CANDLES = 20;
         const ZOOM_STEP = 0.2;
@@ -1189,6 +1193,8 @@
                     console.log('WebSocket Disconnected');
                     updateConnectionStatus('Disconnected', '#ef4444');
                     isConnected = false;
+                    currentTickSubscription = null;
+                    currentCandleSubscription = null;
                     
                     setTimeout(connectToDeriv, 5000);
                 };
@@ -1199,8 +1205,31 @@
             }
         }
 
+        function unsubscribeFromTicks() {
+            if (currentTickSubscription && socket && socket.readyState === WebSocket.OPEN) {
+                const unsubscribeMsg = { ticks: currentTickSubscription, subscribe: 0 };
+                socket.send(JSON.stringify(unsubscribeMsg));
+                console.log(`Unsubscribed from ticks for ${currentTickSubscription}`);
+                currentTickSubscription = null;
+            }
+        }
+
+        function unsubscribeFromCandles() {
+            if (currentCandleSubscription && socket && socket.readyState === WebSocket.OPEN) {
+                const unsubscribeMsg = { ...currentCandleSubscription, subscribe: 0 };
+                socket.send(JSON.stringify(unsubscribeMsg));
+                console.log(`Unsubscribed from candles for ${currentCandleSubscription.ticks_history} (${currentCandleSubscription.granularity}s)`);
+                currentCandleSubscription = null;
+            }
+        }
+
         function subscribeToSymbol(symbol) {
             if (!socket || socket.readyState !== WebSocket.OPEN) return;
+            
+            // Unsubscribe from previous ticks if different
+            if (currentTickSubscription && currentTickSubscription !== symbol) {
+                unsubscribeFromTicks();
+            }
             
             const subscribeMsg = {
                 ticks: symbol,
@@ -1209,6 +1238,7 @@
             
             socket.send(JSON.stringify(subscribeMsg));
             console.log(`📡 Subscribed to ${symbol}`);
+            currentTickSubscription = symbol;
             
             document.getElementById('subscribedSymbols').textContent = symbol;
         }
@@ -1227,9 +1257,26 @@
             } else if (granularity === 3600) {
                 derivGranularity = 3600; // 1 hour
             } else {
-                // For 1s timeframe, we'll use tick data to build candles
+                // For 1s timeframe, we use tick data to build candles
                 console.log('1s timeframe: Using tick data to build candles');
+                
+                // Unsubscribe from any existing candle subscription
+                if (currentCandleSubscription) {
+                    unsubscribeFromCandles();
+                }
                 return;
+            }
+            
+            // Check if we are already subscribed to the same symbol and granularity
+            if (currentCandleSubscription && 
+                currentCandleSubscription.ticks_history === symbol && 
+                currentCandleSubscription.granularity === derivGranularity) {
+                return; // Already subscribed
+            }
+            
+            // Unsubscribe from previous candles if any
+            if (currentCandleSubscription) {
+                unsubscribeFromCandles();
             }
             
             const candlesMsg = {
@@ -1243,6 +1290,7 @@
             
             socket.send(JSON.stringify(candlesMsg));
             console.log(`📊 Requesting candles for ${symbol} (${derivGranularity}s)`);
+            currentCandleSubscription = { ...candlesMsg }; // Store the subscription message
         }
 
         function handleDerivMessage(data) {
@@ -1262,12 +1310,16 @@
                     if (activeTimeframe === 1) {
                         console.log('Using tick data for 1s candles');
                     }
-                } else {
-                    // Fallback to simulation for serious errors
-                    if (!isSimulationRunning) {
-                        console.log('Falling back to simulation');
-                        isSimulationRunning = true;
-                        startSimulation();
+                } else if (data.error?.code === 'InputValidationFailed') {
+                    console.log('Input validation failed, checking symbol compatibility...');
+                    // Check if symbol supports requested granularity
+                    const symbolInfo = SYNTHETIC_INDICES[activeSymbol];
+                    if (symbolInfo && symbolInfo.type === '1s' && activeTimeframe > 1) {
+                        console.log('Symbol does not support this timeframe, using tick data');
+                        // Unsubscribe from candles and use tick data
+                        if (currentCandleSubscription) {
+                            unsubscribeFromCandles();
+                        }
                     }
                 }
             }
@@ -2703,9 +2755,16 @@
             candles = [];
             ticks = [];
             
-            // Request new data
+            // If we are connected, unsubscribe from current candles (if any) and then get new candles (if not 1s)
             if (isConnected) {
-                getCandles(activeSymbol, timeframe);
+                // Unsubscribe from candles (if any) because we are changing the timeframe
+                if (currentCandleSubscription) {
+                    unsubscribeFromCandles();
+                }
+                // If timeframe is not 1s, get candles
+                if (timeframe !== 1) {
+                    getCandles(activeSymbol, timeframe);
+                }
             } else {
                 generateInitialCandles();
             }
@@ -2761,6 +2820,12 @@
         }
 
         function changeSymbol(symbol) {
+            // Unsubscribe from current tick and candle subscriptions
+            if (isConnected) {
+                unsubscribeFromTicks();
+                unsubscribeFromCandles();
+            }
+
             activeSymbol = symbol;
             
             document.getElementById('symbolSelect').value = symbol;
