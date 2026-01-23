@@ -17,6 +17,8 @@
             --chart-bearish: #EC3F3F;
             --muted-foreground: #8A94B3;
             --grid-color: #1E2438;
+            --dropdown-bg: #151A2D;
+            --dropdown-hover: #1D2339;
         }
 
         .light-mode {
@@ -31,6 +33,8 @@
             --chart-bearish: #EC3F3F;
             --muted-foreground: #6B7380;
             --grid-color: #E6E9F0;
+            --dropdown-bg: #FFFFFF;
+            --dropdown-hover: #F8F9FC;
         }
 
         * {
@@ -70,27 +74,114 @@
             gap: 20px;
         }
 
-        .symbol-selector {
+        .symbol-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Dropdown Container */
+        .dropdown {
+            position: relative;
+            min-width: 200px;
+        }
+
+        .dropdown-toggle {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--secondary);
+            border: 1px solid var(--border);
+            color: var(--foreground);
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .dropdown-toggle:hover {
+            background: var(--dropdown-hover);
+        }
+
+        .dropdown-toggle:after {
+            content: '▼';
+            font-size: 10px;
+            margin-left: 8px;
+            transition: transform 0.2s;
+        }
+
+        .dropdown-toggle.open:after {
+            transform: rotate(180deg);
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--dropdown-bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            margin-top: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .dropdown-item:hover {
+            background: var(--dropdown-hover);
+        }
+
+        .dropdown-item.active {
+            background: var(--primary);
+            color: var(--primary-foreground);
+        }
+
+        .symbol-badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            background: var(--background);
+            color: var(--muted-foreground);
+        }
+
+        .dropdown-item.active .symbol-badge {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .price-display {
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        .symbol-name {
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .symbol-price {
+        .current-price {
             font-size: 20px;
             font-weight: 600;
         }
 
-        .symbol-price.up {
+        .current-price.up {
             color: var(--chart-bullish);
         }
 
-        .symbol-price.down {
+        .current-price.down {
             color: var(--chart-bearish);
         }
 
@@ -225,76 +316,31 @@
             letter-spacing: 0.5px;
         }
 
-        .symbol-list {
+        .indicator-controls {
             display: flex;
-            flex-direction: column;
             gap: 8px;
-        }
-
-        .symbol-item {
-            padding: 8px 12px;
-            background: var(--secondary);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .symbol-item:hover {
-            background: var(--border);
-        }
-
-        .symbol-item.active {
-            background: var(--primary);
-            color: var(--primary-foreground);
-            border-color: var(--primary);
-        }
-
-        .symbol-item .symbol-code {
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .symbol-item .symbol-type {
-            font-size: 11px;
-            color: var(--muted-foreground);
-            padding: 2px 6px;
-            background: var(--background);
-            border-radius: 10px;
-        }
-
-        .symbol-item.active .symbol-type {
-            background: rgba(255, 255, 255, 0.2);
-            color: var(--primary-foreground);
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px;
-            background: var(--secondary);
-            border-radius: 4px;
+            flex-wrap: wrap;
             margin-top: 8px;
         }
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--chart-bullish);
+        .indicator-btn {
+            padding: 4px 8px;
+            background: var(--secondary);
+            border: 1px solid var(--border);
+            color: var(--foreground);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
         }
 
-        .status-dot.disconnected {
-            background: var(--chart-bearish);
+        .indicator-btn:hover {
+            background: var(--border);
         }
 
-        .status-text {
-            font-size: 12px;
-            color: var(--muted-foreground);
+        .indicator-btn.active {
+            background: var(--primary);
+            color: var(--primary-foreground);
+            border-color: var(--primary);
         }
 
         .tick-history {
@@ -341,6 +387,32 @@
             font-size: 10px;
             font-weight: 600;
             color: white;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            background: var(--secondary);
+            border-radius: 4px;
+            margin-top: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--chart-bullish);
+        }
+
+        .status-dot.disconnected {
+            background: var(--chart-bearish);
+        }
+
+        .status-text {
+            font-size: 12px;
+            color: var(--muted-foreground);
         }
 
         .loading-overlay {
@@ -473,31 +545,31 @@
             z-index: 5;
         }
 
-        .indicator-controls {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+        .market-data {
+            display: grid;
+            gap: 6px;
             margin-top: 8px;
         }
 
-        .indicator-btn {
-            padding: 4px 8px;
-            background: var(--secondary);
-            border: 1px solid var(--border);
-            color: var(--foreground);
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
+        .market-data-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
         }
 
-        .indicator-btn:hover {
-            background: var(--border);
+        .market-data-item:last-child {
+            border-bottom: none;
         }
 
-        .indicator-btn.active {
-            background: var(--primary);
-            color: var(--primary-foreground);
-            border-color: var(--primary);
+        .market-data-label {
+            color: var(--muted-foreground);
+        }
+
+        .market-data-value {
+            font-weight: 500;
         }
 
         @media (max-width: 1024px) {
@@ -510,6 +582,15 @@
                 border-left: none;
                 border-top: 1px solid var(--border);
             }
+            
+            .header-left {
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+            
+            .dropdown {
+                min-width: 180px;
+            }
         }
     </style>
 </head>
@@ -517,10 +598,21 @@
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <div class="symbol-selector">
-                    <div class="symbol-name" id="symbolName">Volatility 10 (1s) Index</div>
-                    <div class="symbol-price up" id="currentPrice">--.--</div>
-                    <div class="price-change" id="priceChange">+0.00 (0.00%)</div>
+                <!-- Symbol Dropdown -->
+                <div class="symbol-info">
+                    <div class="dropdown" id="symbolDropdown">
+                        <button class="dropdown-toggle" id="dropdownToggle">
+                            <span>Volatility 10 (1s) Index</span>
+                        </button>
+                        <div class="dropdown-menu" id="dropdownMenu">
+                            <!-- Symbols will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <div class="price-display">
+                        <div class="current-price up" id="currentPrice">--.--</div>
+                        <div class="price-change" id="priceChange">+0.00 (0.00%)</div>
+                    </div>
                 </div>
                 
                 <div class="timeframe-selector">
@@ -566,13 +658,6 @@
             
             <div class="sidebar">
                 <div class="sidebar-section">
-                    <div class="sidebar-title">SYMBOLS</div>
-                    <div class="symbol-list" id="symbolList">
-                        <!-- Symbols will be populated by JavaScript -->
-                    </div>
-                </div>
-                
-                <div class="sidebar-section">
                     <div class="sidebar-title">INDICATORS</div>
                     <div class="indicator-controls">
                         <button class="indicator-btn" data-indicator="sma">SMA 20</button>
@@ -595,18 +680,22 @@
                 
                 <div class="sidebar-section">
                     <div class="sidebar-title">MARKET DATA</div>
-                    <div style="font-size: 12px; color: var(--muted-foreground);">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <span>High (24h):</span>
-                            <span id="marketHigh">--.--</span>
+                    <div class="market-data">
+                        <div class="market-data-item">
+                            <span class="market-data-label">High (24h):</span>
+                            <span class="market-data-value" id="marketHigh">--.--</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <span>Low (24h):</span>
-                            <span id="marketLow">--.--</span>
+                        <div class="market-data-item">
+                            <span class="market-data-label">Low (24h):</span>
+                            <span class="market-data-value" id="marketLow">--.--</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Ticks Received:</span>
-                            <span id="ticksReceived">0</span>
+                        <div class="market-data-item">
+                            <span class="market-data-label">Open:</span>
+                            <span class="market-data-value" id="marketOpen">--.--</span>
+                        </div>
+                        <div class="market-data-item">
+                            <span class="market-data-label">Ticks Received:</span>
+                            <span class="market-data-value" id="ticksReceived">0</span>
                         </div>
                     </div>
                 </div>
@@ -679,7 +768,7 @@
         function init() {
             initTheme();
             initChart();
-            initSymbolList();
+            initSymbolDropdown();
             initEventListeners();
             connectToDeriv();
             
@@ -734,18 +823,63 @@
             generateInitialCandles();
         }
 
-        function initSymbolList() {
-            const list = document.getElementById('symbolList');
-            list.innerHTML = SYMBOLS.map(symbol => `
-                <div class="symbol-item ${symbol.code === activeSymbol.code ? 'active' : ''}" 
+        function initSymbolDropdown() {
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            const dropdownToggle = document.getElementById('dropdownToggle');
+            
+            // Populate dropdown menu
+            dropdownMenu.innerHTML = SYMBOLS.map(symbol => `
+                <div class="dropdown-item ${symbol.code === activeSymbol.code ? 'active' : ''}" 
                      data-symbol="${symbol.code}">
-                    <div class="symbol-code">${symbol.code}</div>
-                    <div class="symbol-type">${symbol.type}</div>
+                    <span>${symbol.name}</span>
+                    <span class="symbol-badge">${symbol.type}</span>
                 </div>
             `).join('');
+            
+            // Update dropdown toggle text
+            dropdownToggle.querySelector('span').textContent = activeSymbol.name;
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!dropdownToggle.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                    dropdownMenu.classList.remove('show');
+                    dropdownToggle.classList.remove('open');
+                }
+            });
         }
 
         function initEventListeners() {
+            // Dropdown toggle
+            const dropdownToggle = document.getElementById('dropdownToggle');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            
+            dropdownToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdownMenu.classList.toggle('show');
+                dropdownToggle.classList.toggle('open');
+            });
+            
+            // Symbol selection
+            dropdownMenu.addEventListener('click', (e) => {
+                const dropdownItem = e.target.closest('.dropdown-item');
+                if (dropdownItem) {
+                    const symbolCode = dropdownItem.dataset.symbol;
+                    const symbol = SYMBOLS.find(s => s.code === symbolCode);
+                    if (symbol) {
+                        changeSymbol(symbol);
+                        
+                        // Update dropdown
+                        dropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+                            item.classList.remove('active');
+                        });
+                        dropdownItem.classList.add('active');
+                        dropdownToggle.querySelector('span').textContent = symbol.name;
+                        dropdownMenu.classList.remove('show');
+                        dropdownToggle.classList.remove('open');
+                    }
+                }
+            });
+
             // Timeframe buttons
             document.querySelectorAll('.timeframe-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -789,23 +923,6 @@
                     toggleIndicator(indicator);
                     btn.classList.toggle('active');
                 });
-            });
-
-            // Symbol list
-            document.getElementById('symbolList').addEventListener('click', (e) => {
-                const symbolItem = e.target.closest('.symbol-item');
-                if (symbolItem) {
-                    const symbolCode = symbolItem.dataset.symbol;
-                    const symbol = SYMBOLS.find(s => s.code === symbolCode);
-                    if (symbol) {
-                        changeSymbol(symbol);
-                        
-                        document.querySelectorAll('.symbol-item').forEach(item => {
-                            item.classList.remove('active');
-                        });
-                        symbolItem.classList.add('active');
-                    }
-                }
             });
 
             // Zoom controls
@@ -1694,7 +1811,8 @@
             activeSymbol = symbol;
             
             // Update UI
-            document.getElementById('symbolName').textContent = symbol.name;
+            const dropdownToggle = document.getElementById('dropdownToggle');
+            dropdownToggle.querySelector('span').textContent = symbol.name;
             
             // Clear data
             candles = [];
@@ -1840,7 +1958,7 @@
                     const changeText = `${isPositive ? '+' : ''}${change.toFixed(2)} (${isPositive ? '+' : ''}${changePercent.toFixed(2)}%)`;
                     
                     changeElement.textContent = changeText;
-                    priceElement.className = `symbol-price ${isPositive ? 'up' : 'down'}`;
+                    priceElement.className = `current-price ${isPositive ? 'up' : 'down'}`;
                 }
             }
         }
@@ -1876,15 +1994,18 @@
             
             let high = -Infinity;
             let low = Infinity;
+            let open = candles[0].open;
             
             const hours24 = Math.min(candles.length, 24 * 60 * 60 / activeTimeframe);
             for (let i = 0; i < hours24; i++) {
                 high = Math.max(high, candles[i].high);
                 low = Math.min(low, candles[i].low);
+                if (i === hours24 - 1) open = candles[i].open;
             }
             
             document.getElementById('marketHigh').textContent = high.toFixed(2);
             document.getElementById('marketLow').textContent = low.toFixed(2);
+            document.getElementById('marketOpen').textContent = open.toFixed(2);
             document.getElementById('ticksReceived').textContent = ticks.length;
         }
 
