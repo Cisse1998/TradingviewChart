@@ -1002,19 +1002,19 @@
         let activeTimeframe = 1;
         
         const SYNTHETIC_INDICES = {
-            '1HZ10V': { name: 'Volatility 10 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_10': { name: 'Volatility 10 Index', type: 'standard', basePrice: 35000 },
-            '1HZ15V': { name: 'Volatility 15 (1s) Index', type: '1s', basePrice: 35000 },
-            '1HZ25V': { name: 'Volatility 25 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_25': { name: 'Volatility 25 Index', type: 'standard', basePrice: 35000 },
-            '1HZ30V': { name: 'Volatility 30 (1s) Index', type: '1s', basePrice: 35000 },
-            '1HZ50V': { name: 'Volatility 50 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_50': { name: 'Volatility 50 Index', type: 'standard', basePrice: 35000 },
-            '1HZ75V': { name: 'Volatility 75 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_75': { name: 'Volatility 75 Index', type: 'standard', basePrice: 35000 },
-            '1HZ90V': { name: 'Volatility 90 (1s) Index', type: '1s', basePrice: 35000 },
-            '1HZ100V': { name: 'Volatility 100 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_100': { name: 'Volatility 100 Index', type: 'standard', basePrice: 35000 }
+            '1HZ10V': { name: 'Volatility 10 (1s) Index', type: '1s', supportsCandles: false, basePrice: 35000 },
+            'R_10': { name: 'Volatility 10 Index', type: 'standard', supportsCandles: true, basePrice: 35000 },
+            '1HZ15V': { name: 'Volatility 15 (1s) Index', type: '1s', supportsCandles: false, basePrice: 35000 },
+            '1HZ25V': { name: 'Volatility 25 (1s) Index', type: '1s', supportsCandles: false, basePrice: 35000 },
+            'R_25': { name: 'Volatility 25 Index', type: 'standard', supportsCandles: true, basePrice: 35000 },
+            '1HZ30V': { name: 'Volatility 30 (1s) Index', type: '1s', supportsCandles: false, basePrice: 35000 },
+            '1HZ50V': { name: 'Volatility 50 (1s) Index', type: '1s', supportsCandles: false, basePrice: 35000 },
+            'R_50': { name: 'Volatility 50 Index', type: 'standard', supportsCandles: true, basePrice: 35000 },
+            '1HZ75V': { name: 'Volatility 75 (1s) Index', type: '1s', supportsCandles: false, basePrice: 35000 },
+            'R_75': { name: 'Volatility 75 Index', type: 'standard', supportsCandles: true, basePrice: 35000 },
+            '1HZ90V': { name: 'Volatility 90 (1s) Index', type: '1s', supportsCandles: false, basePrice: 35000 },
+            '1HZ100V': { name: 'Volatility 100 (1s) Index', type: '1s', supportsCandles: false, basePrice: 35000 },
+            'R_100': { name: 'Volatility 100 Index', type: 'standard', supportsCandles: true, basePrice: 35000 }
         };
 
         // ======================
@@ -1217,13 +1217,13 @@
         function unsubscribeFromCandles() {
             if (currentCandleSubscription && socket && socket.readyState === WebSocket.OPEN) {
                 const unsubscribeMsg = { 
-                    ticks_history: currentCandleSubscription.ticks_history,
+                    ticks_history: currentCandleSubscription.symbol,
+                    subscribe: 0,
                     style: 'candles',
-                    granularity: currentCandleSubscription.granularity,
-                    subscribe: 0 
+                    granularity: currentCandleSubscription.granularity
                 };
                 socket.send(JSON.stringify(unsubscribeMsg));
-                console.log(`Unsubscribed from candles for ${currentCandleSubscription.ticks_history} (${currentCandleSubscription.granularity}s)`);
+                console.log(`Unsubscribed from candles for ${currentCandleSubscription.symbol} (${currentCandleSubscription.granularity}s)`);
                 currentCandleSubscription = null;
             }
         }
@@ -1251,11 +1251,22 @@
         function getCandles(symbol, granularity) {
             if (!socket || socket.readyState !== WebSocket.OPEN) return;
             
-            // Check if symbol supports this timeframe
+            // Check if symbol supports candles
             const symbolInfo = SYNTHETIC_INDICES[symbol];
-            if (symbolInfo && symbolInfo.type === '1s' && granularity > 1) {
-                console.log(`Symbol ${symbol} is a 1s symbol and doesn't support ${granularity}s timeframe`);
-                // For 1s symbols, we only use tick data
+            if (!symbolInfo) return;
+            
+            // 1s symbols don't support candle subscriptions
+            if (symbolInfo.type === '1s') {
+                console.log(`${symbol} is a 1s symbol - using tick data for chart`);
+                if (currentCandleSubscription) {
+                    unsubscribeFromCandles();
+                }
+                return;
+            }
+            
+            // For 1s timeframe, we don't use candles API
+            if (granularity === 1) {
+                console.log('1s timeframe: Using tick data to build candles');
                 if (currentCandleSubscription) {
                     unsubscribeFromCandles();
                 }
@@ -1273,20 +1284,16 @@
             } else if (granularity === 3600) {
                 derivGranularity = 3600;
             } else {
-                // For 1s timeframe, we don't use candles, so unsubscribe from candles if any
-                if (currentCandleSubscription) {
-                    unsubscribeFromCandles();
-                }
-                console.log('1s timeframe: Using tick data to build candles');
+                console.log(`Granularity ${granularity} not supported`);
                 return;
             }
             
             // Check if we are already subscribed to the same symbol and granularity
             if (currentCandleSubscription && 
-                currentCandleSubscription.ticks_history === symbol && 
+                currentCandleSubscription.symbol === symbol && 
                 currentCandleSubscription.granularity === derivGranularity) {
                 console.log(`Already subscribed to candles for ${symbol} (${derivGranularity}s)`);
-                return; // Already subscribed
+                return;
             }
             
             // Unsubscribe from previous candles if any
@@ -1306,14 +1313,12 @@
             socket.send(JSON.stringify(candlesMsg));
             console.log(`📊 Requesting candles for ${symbol} (${derivGranularity}s)`);
             currentCandleSubscription = { 
-                ticks_history: symbol,
+                symbol: symbol,
                 granularity: derivGranularity
             };
         }
 
         function handleDerivMessage(data) {
-            console.log('Received Deriv message:', data.msg_type);
-            
             if (data.msg_type === 'tick') {
                 handleTickData(data.tick);
             } else if (data.msg_type === 'candles') {
@@ -1325,20 +1330,16 @@
             } else if (data.error) {
                 console.warn('Deriv API Warning:', data.error?.message || 'API Error');
                 
-                // Handle specific errors
+                // Handle specific errors gracefully
                 if (data.error?.code === 'InvalidGranularity') {
-                    if (activeTimeframe === 1) {
-                        console.log('Using tick data for 1s candles');
-                        currentCandleSubscription = null;
-                    }
+                    console.log('Invalid granularity for symbol, using tick data');
+                    currentCandleSubscription = null;
                 } else if (data.error?.code === 'InputValidationFailed') {
-                    console.log('Input validation failed for current subscription');
+                    console.log('Input validation failed, checking subscription...');
                     
-                    // Check if this is for a candle subscription
-                    if (currentCandleSubscription && 
-                        data.error?.details?.includes('ticks_history') ||
-                        data.error?.details?.includes('granularity')) {
-                        console.log('Invalid candle subscription, clearing...');
+                    // Clear invalid subscription
+                    if (currentCandleSubscription) {
+                        console.log('Clearing invalid candle subscription');
                         currentCandleSubscription = null;
                     }
                 }
@@ -1376,8 +1377,9 @@
             
             updateMarketData();
             
-            // For 1s timeframe, build candles from ticks
-            if (activeTimeframe === 1) {
+            // For 1s symbols or 1s timeframe, build candles from ticks
+            const symbolInfo = SYNTHETIC_INDICES[activeSymbol];
+            if (symbolInfo.type === '1s' || activeTimeframe === 1) {
                 updateChartWithTick(newTick);
             }
         }
@@ -1467,11 +1469,21 @@
         // SIMULATION (FALLBACK)
         // ======================
         function startSimulation() {
+            if (isSimulationRunning) return;
+            
             const symbolInfo = SYNTHETIC_INDICES[activeSymbol];
             if (!symbolInfo) return;
             
             generateInitialCandles();
-            setInterval(simulateTick, 1000);
+            isSimulationRunning = true;
+            
+            const simulationInterval = setInterval(() => {
+                if (!isSimulationRunning) {
+                    clearInterval(simulationInterval);
+                    return;
+                }
+                simulateTick();
+            }, 1000);
         }
 
         function generateInitialCandles() {
@@ -1992,745 +2004,6 @@
         }
 
         // ======================
-        // MACD INDICATOR
-        // ======================
-        function calculateMACD() {
-            if (candles.length < 26) return [];
-            
-            const result = [];
-            
-            // Calculate EMA(12) and EMA(26)
-            const ema12 = calculateEMAArray(12);
-            const ema26 = calculateEMAArray(26);
-            
-            // Calculate MACD line (EMA12 - EMA26)
-            const macdLine = [];
-            for (let i = 0; i < candles.length; i++) {
-                if (ema12[i] !== null && ema26[i] !== null) {
-                    macdLine.push(ema12[i] - ema26[i]);
-                } else {
-                    macdLine.push(null);
-                }
-            }
-            
-            // Calculate Signal line (EMA9 of MACD line)
-            const signalLine = calculateSignalLine(macdLine);
-            
-            // Calculate Histogram (MACD - Signal)
-            for (let i = 0; i < candles.length; i++) {
-                if (macdLine[i] !== null && signalLine[i] !== null) {
-                    result.push({
-                        macd: macdLine[i],
-                        signal: signalLine[i],
-                        histogram: macdLine[i] - signalLine[i]
-                    });
-                } else {
-                    result.push({ macd: null, signal: null, histogram: null });
-                }
-            }
-            
-            return result;
-        }
-
-        function calculateEMAArray(period) {
-            const result = [];
-            const multiplier = 2 / (period + 1);
-            
-            for (let i = 0; i < candles.length; i++) {
-                if (i < period - 1) {
-                    result.push(null);
-                    continue;
-                }
-                
-                // Calculate SMA for first EMA
-                if (i === period - 1) {
-                    let sum = 0;
-                    for (let j = 0; j < period; j++) {
-                        sum += candles[i - j].close;
-                    }
-                    result.push(sum / period);
-                    continue;
-                }
-                
-                // Calculate EMA
-                const ema = (candles[i].close - result[i - 1]) * multiplier + result[i - 1];
-                result.push(ema);
-            }
-            
-            return result;
-        }
-
-        function calculateSignalLine(macdLine) {
-            const period = 9;
-            const result = [];
-            const multiplier = 2 / (period + 1);
-            
-            for (let i = 0; i < macdLine.length; i++) {
-                if (macdLine[i] === null || i < period - 1) {
-                    result.push(null);
-                    continue;
-                }
-                
-                // Calculate SMA for first Signal value
-                if (i === period - 1) {
-                    let sum = 0;
-                    let count = 0;
-                    for (let j = 0; j < period; j++) {
-                        if (macdLine[i - j] !== null) {
-                            sum += macdLine[i - j];
-                            count++;
-                        }
-                    }
-                    result.push(count > 0 ? sum / count : null);
-                    continue;
-                }
-                
-                // Calculate EMA
-                const ema = (macdLine[i] - result[i - 1]) * multiplier + result[i - 1];
-                result.push(ema);
-            }
-            
-            return result;
-        }
-
-        function drawMACD() {
-            if (!macdCtx || !showMACD || candles.length < 26) return;
-            
-            const macdCanvas = document.getElementById('macdCanvas');
-            const width = macdCanvas.width;
-            const height = macdCanvas.height;
-            
-            macdCtx.clearRect(0, 0, width, height);
-            
-            // Draw background
-            macdCtx.fillStyle = document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b';
-            macdCtx.fillRect(0, 0, width, height);
-            
-            const macdData = calculateMACD();
-            if (macdData.length === 0) return;
-            
-            // Get visible range
-            const totalCandles = candles.length;
-            const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
-            const maxOffset = Math.max(0, totalCandles - visibleCount);
-            const clampedOffset = Math.min(Math.max(0, panOffset), maxOffset);
-            
-            const startIndex = Math.floor(clampedOffset);
-            const endIndex = Math.min(startIndex + visibleCount, totalCandles);
-            const visibleMACDData = macdData.slice(startIndex, endIndex);
-            
-            if (visibleMACDData.length === 0) return;
-            
-            // Find min/max values for scaling
-            let minValue = Infinity;
-            let maxValue = -Infinity;
-            
-            visibleMACDData.forEach(data => {
-                if (data.macd !== null) {
-                    minValue = Math.min(minValue, data.macd);
-                    maxValue = Math.max(maxValue, data.macd);
-                }
-                if (data.signal !== null) {
-                    minValue = Math.min(minValue, data.signal);
-                    maxValue = Math.max(maxValue, data.signal);
-                }
-                if (data.histogram !== null) {
-                    minValue = Math.min(minValue, data.histogram);
-                    maxValue = Math.max(maxValue, data.histogram);
-                }
-            });
-            
-            const range = Math.max(Math.abs(minValue), Math.abs(maxValue)) * 1.2;
-            minValue = -range;
-            maxValue = range;
-            
-            const macdMargin = { top: 10, right: 10, left: 10, bottom: 10 };
-            const chartWidthAdj = width - macdMargin.left - macdMargin.right;
-            const chartHeightAdj = height - macdMargin.top - macdMargin.bottom;
-            
-            const pixelPerValue = chartHeightAdj / (maxValue - minValue);
-            
-            // Draw zero line
-            macdCtx.strokeStyle = document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af';
-            macdCtx.lineWidth = 1;
-            const zeroY = macdMargin.top + (maxValue - 0) * pixelPerValue;
-            macdCtx.beginPath();
-            macdCtx.moveTo(macdMargin.left, zeroY);
-            macdCtx.lineTo(width - macdMargin.right, zeroY);
-            macdCtx.stroke();
-            
-            // Draw histogram bars (thicker and more visible)
-            const barWidth = Math.max(2, chartWidthAdj / visibleMACDData.length * 0.7);
-            
-            visibleMACDData.forEach((data, index) => {
-                if (data.histogram === null) return;
-                
-                const x = macdMargin.left + (index * chartWidthAdj) / Math.max(1, visibleMACDData.length - 1) - barWidth/2;
-                const y = macdMargin.top + (maxValue - Math.max(0, data.histogram)) * pixelPerValue;
-                const barHeight = Math.abs(data.histogram) * pixelPerValue;
-                
-                // Make histogram bars more visible with solid colors
-                macdCtx.fillStyle = data.histogram >= 0 ? '#10b981' : '#ef4444';
-                macdCtx.fillRect(x, data.histogram >= 0 ? y - barHeight : y, barWidth, barHeight);
-                
-                // Add border to histogram bars
-                macdCtx.strokeStyle = data.histogram >= 0 ? '#0d966e' : '#d93737';
-                macdCtx.lineWidth = 1;
-                macdCtx.strokeRect(x, data.histogram >= 0 ? y - barHeight : y, barWidth, barHeight);
-            });
-            
-            // Draw MACD line
-            macdCtx.strokeStyle = '#3b82f6';
-            macdCtx.lineWidth = 2;
-            macdCtx.beginPath();
-            
-            let started = false;
-            visibleMACDData.forEach((data, index) => {
-                if (data.macd === null) return;
-                
-                const x = macdMargin.left + (index * chartWidthAdj) / Math.max(1, visibleMACDData.length - 1);
-                const y = macdMargin.top + (maxValue - data.macd) * pixelPerValue;
-                
-                if (!started) {
-                    macdCtx.moveTo(x, y);
-                    started = true;
-                } else {
-                    macdCtx.lineTo(x, y);
-                }
-            });
-            
-            macdCtx.stroke();
-            
-            // Draw signal line
-            macdCtx.strokeStyle = '#ef4444';
-            macdCtx.lineWidth = 2;
-            macdCtx.beginPath();
-            
-            started = false;
-            visibleMACDData.forEach((data, index) => {
-                if (data.signal === null) return;
-                
-                const x = macdMargin.left + (index * chartWidthAdj) / Math.max(1, visibleMACDData.length - 1);
-                const y = macdMargin.top + (maxValue - data.signal) * pixelPerValue;
-                
-                if (!started) {
-                    macdCtx.moveTo(x, y);
-                    started = true;
-                } else {
-                    macdCtx.lineTo(x, y);
-                }
-            });
-            
-            macdCtx.stroke();
-            
-            // Draw value labels on the right
-            macdCtx.fillStyle = '#9ca3af';
-            macdCtx.font = '10px Arial';
-            macdCtx.textAlign = 'left';
-            
-            // Show MACD value
-            const lastMACD = visibleMACDData[0]?.macd;
-            if (lastMACD !== null) {
-                macdCtx.fillStyle = '#3b82f6';
-                macdCtx.fillText(`MACD: ${lastMACD.toFixed(4)}`, width - 150, 20);
-            }
-            
-            // Show Signal value
-            const lastSignal = visibleMACDData[0]?.signal;
-            if (lastSignal !== null) {
-                macdCtx.fillStyle = '#ef4444';
-                macdCtx.fillText(`Signal: ${lastSignal.toFixed(4)}`, width - 150, 35);
-            }
-            
-            // Show Histogram value
-            const lastHistogram = visibleMACDData[0]?.histogram;
-            if (lastHistogram !== null) {
-                macdCtx.fillStyle = lastHistogram >= 0 ? '#10b981' : '#ef4444';
-                macdCtx.fillText(`Hist: ${lastHistogram.toFixed(4)}`, width - 150, 50);
-            }
-        }
-
-        function toggleMACD() {
-            showMACD = !showMACD;
-            const toggleBtn = document.getElementById('macdToggle');
-            const container = document.getElementById('macdContainer');
-            
-            if (showMACD) {
-                toggleBtn.textContent = 'ON';
-                toggleBtn.classList.add('active');
-                container.style.display = 'block';
-                drawMACD();
-            } else {
-                toggleBtn.textContent = 'OFF';
-                toggleBtn.classList.remove('active');
-                container.style.display = 'none';
-            }
-            
-            updateActiveIndicatorsUI();
-            updateLegend();
-        }
-
-        // ======================
-        // CCI INDICATOR
-        // ======================
-        function calculateCCI(period = 20) {
-            if (candles.length < period) return [];
-            
-            const result = [];
-            
-            for (let i = 0; i < candles.length; i++) {
-                if (i < period - 1) {
-                    result.push(null);
-                    continue;
-                }
-                
-                // Calculate typical price for last 'period' candles
-                const typicalPrices = [];
-                for (let j = 0; j < period; j++) {
-                    const candle = candles[i - j];
-                    const typicalPrice = (candle.high + candle.low + candle.close) / 3;
-                    typicalPrices.push(typicalPrice);
-                }
-                
-                // Calculate SMA of typical prices
-                const sma = typicalPrices.reduce((sum, price) => sum + price, 0) / period;
-                
-                // Calculate mean deviation
-                let meanDeviation = 0;
-                for (let j = 0; j < period; j++) {
-                    meanDeviation += Math.abs(typicalPrices[j] - sma);
-                }
-                meanDeviation /= period;
-                
-                // Calculate current typical price
-                const currentCandle = candles[i];
-                const currentTypical = (currentCandle.high + currentCandle.low + currentCandle.close) / 3;
-                
-                // Calculate CCI
-                const cci = meanDeviation === 0 ? 0 : (currentTypical - sma) / (0.015 * meanDeviation);
-                result.push(cci);
-            }
-            
-            return result;
-        }
-
-        function drawCCI() {
-            if (!cciCtx || !showCCI || candles.length < 20) return;
-            
-            const cciCanvas = document.getElementById('cciCanvas');
-            const width = cciCanvas.width;
-            const height = cciCanvas.height;
-            
-            cciCtx.clearRect(0, 0, width, height);
-            
-            // Draw background
-            cciCtx.fillStyle = document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b';
-            cciCtx.fillRect(0, 0, width, height);
-            
-            const cciData = calculateCCI();
-            if (cciData.length === 0) return;
-            
-            // Get visible range
-            const totalCandles = candles.length;
-            const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
-            const maxOffset = Math.max(0, totalCandles - visibleCount);
-            const clampedOffset = Math.min(Math.max(0, panOffset), maxOffset);
-            
-            const startIndex = Math.floor(clampedOffset);
-            const endIndex = Math.min(startIndex + visibleCount, totalCandles);
-            const visibleCCIData = cciData.slice(startIndex, endIndex);
-            
-            if (visibleCCIData.length === 0) return;
-            
-            // Find min/max values for scaling
-            let minValue = Infinity;
-            let maxValue = -Infinity;
-            
-            visibleCCIData.forEach(value => {
-                if (value !== null) {
-                    minValue = Math.min(minValue, value);
-                    maxValue = Math.max(maxValue, value);
-                }
-            });
-            
-            // Standard CCI range is -200 to +200, but we'll adjust based on actual data
-            minValue = Math.min(minValue, -100);
-            maxValue = Math.max(maxValue, 100);
-            const range = Math.max(200, maxValue - minValue);
-            minValue = -range/2;
-            maxValue = range/2;
-            
-            const cciMargin = { top: 10, right: 10, left: 10, bottom: 10 };
-            const chartWidthAdj = width - cciMargin.left - cciMargin.right;
-            const chartHeightAdj = height - cciMargin.top - cciMargin.bottom;
-            
-            const pixelPerValue = chartHeightAdj / (maxValue - minValue);
-            
-            // Draw zero line
-            cciCtx.strokeStyle = document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af';
-            cciCtx.lineWidth = 1;
-            const zeroY = cciMargin.top + (maxValue - 0) * pixelPerValue;
-            cciCtx.beginPath();
-            cciCtx.moveTo(cciMargin.left, zeroY);
-            cciCtx.lineTo(width - cciMargin.right, zeroY);
-            cciCtx.stroke();
-            
-            // Draw +100 and -100 lines (overbought/oversold)
-            cciCtx.strokeStyle = '#ef4444';
-            cciCtx.setLineDash([5, 5]);
-            
-            const plus100Y = cciMargin.top + (maxValue - 100) * pixelPerValue;
-            cciCtx.beginPath();
-            cciCtx.moveTo(cciMargin.left, plus100Y);
-            cciCtx.lineTo(width - cciMargin.right, plus100Y);
-            cciCtx.stroke();
-            
-            const minus100Y = cciMargin.top + (maxValue - (-100)) * pixelPerValue;
-            cciCtx.beginPath();
-            cciCtx.moveTo(cciMargin.left, minus100Y);
-            cciCtx.lineTo(width - cciMargin.right, minus100Y);
-            cciCtx.stroke();
-            
-            cciCtx.setLineDash([]);
-            
-            // Draw CCI line
-            cciCtx.strokeStyle = '#8b5cf6';
-            cciCtx.lineWidth = 2;
-            cciCtx.beginPath();
-            
-            let started = false;
-            visibleCCIData.forEach((value, index) => {
-                if (value === null) return;
-                
-                const x = cciMargin.left + (index * chartWidthAdj) / Math.max(1, visibleCCIData.length - 1);
-                const y = cciMargin.top + (maxValue - value) * pixelPerValue;
-                
-                if (!started) {
-                    cciCtx.moveTo(x, y);
-                    started = true;
-                } else {
-                    cciCtx.lineTo(x, y);
-                }
-            });
-            
-            cciCtx.stroke();
-            
-            // Fill area above/below zero line
-            cciCtx.beginPath();
-            started = false;
-            visibleCCIData.forEach((value, index) => {
-                if (value === null) return;
-                
-                const x = cciMargin.left + (index * chartWidthAdj) / Math.max(1, visibleCCIData.length - 1);
-                const y = cciMargin.top + (maxValue - value) * pixelPerValue;
-                
-                if (!started) {
-                    cciCtx.moveTo(x, y);
-                    started = true;
-                } else {
-                    cciCtx.lineTo(x, y);
-                }
-            });
-            
-            // Close the path to create a filled area
-            if (visibleCCIData.length > 0) {
-                const lastIndex = visibleCCIData.length - 1;
-                const lastX = cciMargin.left + (lastIndex * chartWidthAdj) / Math.max(1, visibleCCIData.length - 1);
-                cciCtx.lineTo(lastX, zeroY);
-                cciCtx.lineTo(cciMargin.left, zeroY);
-                cciCtx.closePath();
-                
-                // Create gradient fill
-                const gradient = cciCtx.createLinearGradient(0, cciMargin.top, 0, height - cciMargin.bottom);
-                gradient.addColorStop(0, 'rgba(139, 92, 246, 0.3)');
-                gradient.addColorStop(0.5, 'rgba(139, 92, 246, 0.1)');
-                gradient.addColorStop(1, 'rgba(139, 92, 246, 0)');
-                
-                cciCtx.fillStyle = gradient;
-                cciCtx.fill();
-            }
-            
-            // Draw current CCI value
-            const lastCCI = visibleCCIData[0];
-            if (lastCCI !== null && lastCCI !== undefined) {
-                cciCtx.fillStyle = '#8b5cf6';
-                cciCtx.font = 'bold 12px Arial';
-                cciCtx.textAlign = 'left';
-                
-                // Color code based on overbought/oversold
-                if (lastCCI > 100) {
-                    cciCtx.fillStyle = '#ef4444'; // Overbought
-                } else if (lastCCI < -100) {
-                    cciCtx.fillStyle = '#10b981'; // Oversold
-                } else {
-                    cciCtx.fillStyle = '#8b5cf6'; // Neutral
-                }
-                
-                cciCtx.fillText(`CCI: ${lastCCI.toFixed(2)}`, width - 100, 20);
-                
-                // Add interpretation
-                cciCtx.font = '10px Arial';
-                let interpretation = '';
-                if (lastCCI > 100) interpretation = 'OVERBOUGHT';
-                else if (lastCCI < -100) interpretation = 'OVERSOLD';
-                else interpretation = 'NEUTRAL';
-                
-                cciCtx.fillText(interpretation, width - 100, 35);
-            }
-        }
-
-        function toggleCCI() {
-            showCCI = !showCCI;
-            const toggleBtn = document.getElementById('cciToggle');
-            const container = document.getElementById('cciContainer');
-            
-            if (showCCI) {
-                toggleBtn.textContent = 'ON';
-                toggleBtn.classList.add('active');
-                container.style.display = 'block';
-                drawCCI();
-            } else {
-                toggleBtn.textContent = 'OFF';
-                toggleBtn.classList.remove('active');
-                container.style.display = 'none';
-            }
-            
-            updateActiveIndicatorsUI();
-            updateLegend();
-        }
-
-        // ======================
-        // DRAWING TOOLS
-        // ======================
-        function drawOverlay() {
-            if (!overlayCtx) return;
-            
-            overlayCtx.clearRect(0, 0, chartWidth, chartHeight);
-            
-            // Draw existing drawings
-            drawings.forEach(drawing => {
-                drawShape(overlayCtx, drawing);
-            });
-            
-            // Draw current shape being drawn
-            if (isDrawing && startPoint && currentPoint && activeTool !== 'select') {
-                const tempDrawing = {
-                    type: activeTool,
-                    points: activeTool === 'hline' ? [startPoint] : [startPoint, currentPoint],
-                    color: DRAWING_COLORS[Math.floor(Math.random() * DRAWING_COLORS.length)]
-                };
-                drawShape(overlayCtx, tempDrawing);
-            }
-        }
-
-        function drawShape(ctx, drawing) {
-            ctx.strokeStyle = drawing.color;
-            ctx.lineWidth = 2;
-            ctx.setLineDash([]);
-            
-            if (drawing.points.length === 0) return;
-            
-            const start = drawing.points[0];
-            const end = drawing.points.length > 1 ? drawing.points[1] : start;
-            
-            switch (drawing.type) {
-                case 'line':
-                    ctx.beginPath();
-                    ctx.moveTo(start.x, start.y);
-                    ctx.lineTo(end.x, end.y);
-                    ctx.stroke();
-                    
-                    // Draw endpoints
-                    ctx.fillStyle = drawing.color;
-                    ctx.beginPath();
-                    ctx.arc(start.x, start.y, 4, 0, 2 * Math.PI);
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.arc(end.x, end.y, 4, 0, 2 * Math.PI);
-                    ctx.fill();
-                    break;
-                    
-                case 'hline':
-                    ctx.setLineDash([5, 5]);
-                    ctx.beginPath();
-                    ctx.moveTo(CHART_MARGIN.left, start.y);
-                    ctx.lineTo(chartWidth - CHART_MARGIN.right, start.y);
-                    ctx.stroke();
-                    
-                    // Draw price label
-                    ctx.setLineDash([]);
-                    const chartHeightAdj = chartHeight - CHART_MARGIN.top - CHART_MARGIN.bottom;
-                    const priceRange = getCurrentPriceRange();
-                    const price = priceRange.max - ((start.y - CHART_MARGIN.top) / chartHeightAdj) * (priceRange.max - priceRange.min);
-                    
-                    ctx.fillStyle = drawing.color;
-                    ctx.font = 'bold 10px sans-serif';
-                    const priceText = price.toFixed(2);
-                    const textWidth = ctx.measureText(priceText).width;
-                    ctx.fillRect(chartWidth - CHART_MARGIN.right + 2, start.y - 8, textWidth + 6, 16);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillText(priceText, chartWidth - CHART_MARGIN.right + 5, start.y + 3);
-                    break;
-            }
-        }
-
-        function getCurrentPriceRange() {
-            const totalCandles = candles.length;
-            const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
-            const maxOffset = Math.max(0, totalCandles - visibleCount);
-            const clampedOffset = Math.min(Math.max(0, panOffset), maxOffset);
-            
-            const startIndex = Math.floor(clampedOffset);
-            const endIndex = Math.min(startIndex + visibleCount, totalCandles);
-            const visibleCandlesData = candles.slice(startIndex, endIndex);
-            
-            return calculatePriceRange(visibleCandlesData);
-        }
-
-        // ======================
-        // MOUSE HANDLING & PANNING
-        // ======================
-        function getMousePos(e) {
-            const rect = e.target.getBoundingClientRect();
-            return {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
-            };
-        }
-
-        function handleMouseDown(e) {
-            const pos = getMousePos(e);
-            
-            if (activeTool === 'select') {
-                // Start dragging for panning
-                isDragging = true;
-                dragStartX = e.clientX;
-                e.preventDefault();
-                return;
-            }
-            
-            if (activeTool === 'select' || activeTool === 'text') return;
-            
-            isDrawing = true;
-            startPoint = pos;
-            currentPoint = pos;
-            
-            updateCursor();
-        }
-
-        function handleMouseMove(e) {
-            const pos = getMousePos(e);
-            
-            if (isDragging) {
-                // Pan the chart
-                const deltaX = e.clientX - dragStartX;
-                dragStartX = e.clientX;
-                
-                // Calculate pan amount based on zoom level
-                const totalCandles = candles.length;
-                const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
-                const maxOffset = Math.max(0, totalCandles - visibleCount);
-                
-                // Move faster when zoomed in
-                const panSpeed = 0.5 * zoomLevel;
-                panOffset = Math.max(0, Math.min(maxOffset, panOffset - (deltaX * panSpeed)));
-                
-                drawChart();
-                drawOverlay();
-                if (showMACD) drawMACD();
-                if (showCCI) drawCCI();
-                return;
-            }
-            
-            if (!isDrawing || activeTool === 'select') return;
-            
-            currentPoint = pos;
-            drawOverlay();
-        }
-
-        function handleMouseUp() {
-            if (isDragging) {
-                isDragging = false;
-                updateCursor();
-                return;
-            }
-            
-            if (!isDrawing || !startPoint || activeTool === 'select') {
-                isDrawing = false;
-                return;
-            }
-            
-            if (startPoint && currentPoint) {
-                const newDrawing = {
-                    id: Date.now().toString(),
-                    type: activeTool,
-                    points: activeTool === 'hline' ? [startPoint] : [startPoint, currentPoint],
-                    color: DRAWING_COLORS[Math.floor(Math.random() * DRAWING_COLORS.length)]
-                };
-                
-                drawings.push(newDrawing);
-            }
-            
-            isDrawing = false;
-            startPoint = null;
-            currentPoint = null;
-            drawOverlay();
-        }
-
-        function handleMouseLeave() {
-            if (isDrawing || isDragging) {
-                handleMouseUp();
-            }
-        }
-
-        function handleWheel(e) {
-            e.preventDefault();
-            
-            if (e.ctrlKey || e.metaKey) {
-                // Zoom
-                const zoomFactor = e.deltaY < 0 ? 1 + ZOOM_STEP : 1 - ZOOM_STEP;
-                const mouseX = e.clientX - e.target.getBoundingClientRect().left;
-                const mousePercent = mouseX / chartWidth;
-                
-                // Calculate current visible range
-                const totalCandles = candles.length;
-                const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
-                const maxOffset = Math.max(0, totalCandles - visibleCount);
-                
-                // Store current pan offset
-                const oldPanOffset = panOffset;
-                
-                // Update zoom level
-                const oldZoomLevel = zoomLevel;
-                zoomLevel = Math.max(1, Math.min(zoomLevel * zoomFactor, totalCandles / MIN_VISIBLE_CANDLES));
-                
-                // Adjust pan offset to keep mouse position fixed
-                const newVisibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
-                const newMaxOffset = Math.max(0, totalCandles - newVisibleCount);
-                
-                const visiblePercent = oldPanOffset / maxOffset;
-                panOffset = Math.max(0, Math.min(newMaxOffset, newMaxOffset * visiblePercent));
-                
-                drawChart();
-                drawOverlay();
-                if (showMACD) drawMACD();
-                if (showCCI) drawCCI();
-            } else {
-                // Pan with wheel
-                const scrollAmount = e.deltaY > 0 ? 20 : -20;
-                const totalCandles = candles.length;
-                const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
-                const maxOffset = Math.max(0, totalCandles - visibleCount);
-                
-                panOffset = Math.min(Math.max(0, panOffset + scrollAmount), maxOffset);
-                drawChart();
-                drawOverlay();
-                if (showMACD) drawMACD();
-                if (showCCI) drawCCI();
-            }
-        }
-
-        // ======================
         // UI CONTROLS
         // ======================
         function setChartType(type) {
@@ -2785,9 +2058,13 @@
                 // Always subscribe to ticks for the current symbol
                 subscribeToSymbol(activeSymbol);
                 
-                // If timeframe is not 1s, try to get candles
-                if (timeframe !== 1) {
+                // Get candles based on symbol type and timeframe
+                const symbolInfo = SYNTHETIC_INDICES[activeSymbol];
+                if (symbolInfo && symbolInfo.supportsCandles && timeframe > 1) {
                     getCandles(activeSymbol, timeframe);
+                } else {
+                    // For 1s symbols or 1s timeframe, use tick data
+                    console.log(`Using tick data for ${activeSymbol} (${timeframeText})`);
                 }
             } else {
                 generateInitialCandles();
@@ -2844,6 +2121,9 @@
         }
 
         function changeSymbol(symbol) {
+            // Stop any running simulation
+            isSimulationRunning = false;
+            
             // Unsubscribe from current tick and candle subscriptions
             if (isConnected) {
                 unsubscribeFromTicks();
@@ -2867,13 +2147,18 @@
             panOffset = 0;
             zoomLevel = 1;
             
-            // Stop any running simulation
-            isSimulationRunning = false;
-            
             // Request new data
             if (isConnected) {
                 subscribeToSymbol(symbol);
-                getCandles(symbol, activeTimeframe);
+                
+                // Get candles based on symbol type
+                const symbolInfo = SYNTHETIC_INDICES[symbol];
+                if (symbolInfo && symbolInfo.supportsCandles && activeTimeframe > 1) {
+                    getCandles(symbol, activeTimeframe);
+                } else {
+                    // For 1s symbols or 1s timeframe, use tick data
+                    console.log(`Using tick data for ${symbol}`);
+                }
             } else {
                 generateInitialCandles();
             }
@@ -3045,7 +2330,7 @@
             const container = document.getElementById('activeIndicators');
             let html = '';
             
-            if (activeIndicators.size === 0 && !showMACD && !showCCI) {
+            if (activeIndicators.size === 0) {
                 html = '<div style="color: var(--muted-foreground); font-size: 12px;">No indicators active</div>';
             } else {
                 const colors = {
@@ -3061,20 +2346,6 @@
                                <span style="font-size: 12px;">${indicator} ${indicator === 'BB' ? '' : '20'}</span>
                              </div>`;
                 });
-                
-                if (showMACD) {
-                    html += `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                               <div style="width: 12px; height: 2px; background: #3b82f6;"></div>
-                               <span style="font-size: 12px;">MACD</span>
-                             </div>`;
-                }
-                
-                if (showCCI) {
-                    html += `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                               <div style="width: 12px; height: 2px; background: #8b5cf6;"></div>
-                               <span style="font-size: 12px;">CCI</span>
-                             </div>`;
-                }
             }
             
             container.innerHTML = html;
@@ -3120,20 +2391,6 @@
                 html += `<div class="legend-item">
                            <div class="legend-color" style="background: #8b5cf6;"></div>
                            <span>Bollinger Bands</span>
-                         </div>`;
-            }
-            
-            if (showMACD) {
-                html += `<div class="legend-item">
-                           <div class="legend-color" style="background: #3b82f6;"></div>
-                           <span>MACD</span>
-                         </div>`;
-            }
-            
-            if (showCCI) {
-                html += `<div class="legend-item">
-                           <div class="legend-color" style="background: #8b5cf6;"></div>
-                           <span>CCI</span>
                          </div>`;
             }
             
@@ -3194,6 +2451,207 @@
                 countdownElement.style.color = '#f59e0b'; // Orange for last 10 seconds
             } else {
                 countdownElement.style.color = '#3b82f6'; // Blue for normal
+            }
+        }
+
+        // ======================
+        // MOUSE HANDLING & DRAWING
+        // ======================
+        function getMousePos(e) {
+            const rect = e.target.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function handleMouseDown(e) {
+            const pos = getMousePos(e);
+            
+            if (activeTool === 'select') {
+                // Start dragging for panning
+                isDragging = true;
+                dragStartX = e.clientX;
+                e.preventDefault();
+                return;
+            }
+            
+            if (activeTool === 'select' || activeTool === 'text') return;
+            
+            isDrawing = true;
+            startPoint = pos;
+            currentPoint = pos;
+            
+            updateCursor();
+        }
+
+        function handleMouseMove(e) {
+            const pos = getMousePos(e);
+            
+            if (isDragging) {
+                // Pan the chart
+                const deltaX = e.clientX - dragStartX;
+                dragStartX = e.clientX;
+                
+                // Calculate pan amount based on zoom level
+                const totalCandles = candles.length;
+                const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
+                const maxOffset = Math.max(0, totalCandles - visibleCount);
+                
+                // Move faster when zoomed in
+                const panSpeed = 0.5 * zoomLevel;
+                panOffset = Math.max(0, Math.min(maxOffset, panOffset - (deltaX * panSpeed)));
+                
+                drawChart();
+                drawOverlay();
+                return;
+            }
+            
+            if (!isDrawing || activeTool === 'select') return;
+            
+            currentPoint = pos;
+            drawOverlay();
+        }
+
+        function handleMouseUp() {
+            if (isDragging) {
+                isDragging = false;
+                updateCursor();
+                return;
+            }
+            
+            if (!isDrawing || !startPoint || activeTool === 'select') {
+                isDrawing = false;
+                return;
+            }
+            
+            if (startPoint && currentPoint) {
+                const newDrawing = {
+                    id: Date.now().toString(),
+                    type: activeTool,
+                    points: activeTool === 'hline' ? [startPoint] : [startPoint, currentPoint],
+                    color: DRAWING_COLORS[Math.floor(Math.random() * DRAWING_COLORS.length)]
+                };
+                
+                drawings.push(newDrawing);
+            }
+            
+            isDrawing = false;
+            startPoint = null;
+            currentPoint = null;
+            drawOverlay();
+        }
+
+        function handleMouseLeave() {
+            if (isDrawing || isDragging) {
+                handleMouseUp();
+            }
+        }
+
+        function handleWheel(e) {
+            e.preventDefault();
+            
+            if (e.ctrlKey || e.metaKey) {
+                // Zoom
+                const zoomFactor = e.deltaY < 0 ? 1 + ZOOM_STEP : 1 - ZOOM_STEP;
+                const mouseX = e.clientX - e.target.getBoundingClientRect().left;
+                const mousePercent = mouseX / chartWidth;
+                
+                // Calculate current visible range
+                const totalCandles = candles.length;
+                const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
+                const maxOffset = Math.max(0, totalCandles - visibleCount);
+                
+                // Store current pan offset
+                const oldPanOffset = panOffset;
+                
+                // Update zoom level
+                const oldZoomLevel = zoomLevel;
+                zoomLevel = Math.max(1, Math.min(zoomLevel * zoomFactor, totalCandles / MIN_VISIBLE_CANDLES));
+                
+                // Adjust pan offset to keep mouse position fixed
+                const newVisibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
+                const newMaxOffset = Math.max(0, totalCandles - newVisibleCount);
+                
+                const visiblePercent = oldPanOffset / maxOffset;
+                panOffset = Math.max(0, Math.min(newMaxOffset, newMaxOffset * visiblePercent));
+                
+                drawChart();
+                drawOverlay();
+            } else {
+                // Pan with wheel
+                const scrollAmount = e.deltaY > 0 ? 20 : -20;
+                const totalCandles = candles.length;
+                const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
+                const maxOffset = Math.max(0, totalCandles - visibleCount);
+                
+                panOffset = Math.min(Math.max(0, panOffset + scrollAmount), maxOffset);
+                drawChart();
+                drawOverlay();
+            }
+        }
+
+        function drawOverlay() {
+            if (!overlayCtx) return;
+            
+            overlayCtx.clearRect(0, 0, chartWidth, chartHeight);
+            
+            // Draw existing drawings
+            drawings.forEach(drawing => {
+                drawShape(overlayCtx, drawing);
+            });
+            
+            // Draw current shape being drawn
+            if (isDrawing && startPoint && currentPoint && activeTool !== 'select') {
+                const tempDrawing = {
+                    type: activeTool,
+                    points: activeTool === 'hline' ? [startPoint] : [startPoint, currentPoint],
+                    color: DRAWING_COLORS[Math.floor(Math.random() * DRAWING_COLORS.length)]
+                };
+                drawShape(overlayCtx, tempDrawing);
+            }
+        }
+
+        function drawShape(ctx, drawing) {
+            ctx.strokeStyle = drawing.color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            
+            if (drawing.points.length === 0) return;
+            
+            const start = drawing.points[0];
+            const end = drawing.points.length > 1 ? drawing.points[1] : start;
+            
+            switch (drawing.type) {
+                case 'line':
+                    ctx.beginPath();
+                    ctx.moveTo(start.x, start.y);
+                    ctx.lineTo(end.x, end.y);
+                    ctx.stroke();
+                    
+                    // Draw endpoints
+                    ctx.fillStyle = drawing.color;
+                    ctx.beginPath();
+                    ctx.arc(start.x, start.y, 4, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(end.x, end.y, 4, 0, 2 * Math.PI);
+                    ctx.fill();
+                    break;
+                    
+                case 'hline':
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(CHART_MARGIN.left, start.y);
+                    ctx.lineTo(chartWidth - CHART_MARGIN.right, start.y);
+                    ctx.stroke();
+                    
+                    // Draw price label
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = drawing.color;
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.fillText('Price Line', start.x + 5, start.y - 5);
+                    break;
             }
         }
 
