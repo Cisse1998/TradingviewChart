@@ -3,51 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trading Dashboard - Volatility Indices</title>
-    
-    <!-- TradingView Widget -->
-    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-    
-    <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lucide/1.0.0/lucide.min.css">
-    
+    <title>Trading Dashboard</title>
     <style>
         :root {
-            --background: 220 20% 97%;
-            --foreground: 220 20% 10%;
-            --card: 0 0% 100%;
-            --border: 220 15% 88%;
-            --primary: 220 70% 50%;
-            --secondary: 220 15% 92%;
-            --destructive: 0 72% 51%;
-            --chart-positive: 142 71% 45%;
-            --chart-negative: 0 72% 51%;
-            --radius: 0.5rem;
-        }
-
-        .dark {
-            --background: 222 47% 8%;
-            --foreground: 210 40% 98%;
-            --card: 222 47% 11%;
-            --border: 217 33% 20%;
-            --primary: 217 91% 60%;
-            --secondary: 217 33% 17%;
+            --background: #0f172a;
+            --foreground: #f8fafc;
+            --primary: #3b82f6;
+            --secondary: #1e293b;
+            --positive: #10b981;
+            --negative: #ef4444;
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Inter', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
         body {
-            background: hsl(var(--background));
-            color: hsl(var(--foreground));
+            background: var(--background);
+            color: var(--foreground);
             min-height: 100vh;
             padding: 20px;
-            transition: background 0.3s, color 0.3s;
         }
 
         .container {
@@ -55,256 +33,82 @@
             margin: 0 auto;
         }
 
-        /* Header */
         .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            text-align: center;
+            padding: 30px 0;
             margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid hsl(var(--border));
         }
 
-        .header h1 {
-            font-size: 28px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
         }
 
-        /* Dashboard Grid */
-        .dashboard-grid {
+        .dashboard {
             display: grid;
             grid-template-columns: 1fr 350px;
             gap: 24px;
         }
 
-        /* Main Chart Area */
-        .chart-section {
-            background: hsl(var(--card));
+        .chart-area {
+            background: #1e293b;
             border-radius: 16px;
             padding: 24px;
-            border: 1px solid hsl(var(--border));
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
         }
 
-        /* Controls */
-        .controls {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: 1px solid hsl(var(--border));
-            background: hsl(var(--secondary));
-            color: hsl(var(--foreground));
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .btn:hover {
-            background: hsl(var(--primary));
-            color: white;
-            border-color: hsl(var(--primary));
-        }
-
-        .btn-primary {
-            background: hsl(var(--primary));
-            color: white;
-            border-color: hsl(var(--primary));
-        }
-
-        /* Ticker Display */
-        .ticker-display {
-            background: hsl(var(--card));
+        .chart-placeholder {
+            height: 500px;
+            background: #0f172a;
             border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid hsl(var(--border));
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: center;
+            flex-direction: column;
         }
 
-        .ticker-info h3 {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-
-        .ticker-symbol {
-            color: hsl(var(--foreground) / 0.6);
-            font-size: 14px;
-        }
-
-        .ticker-price {
-            font-size: 32px;
-            font-weight: 700;
-            font-family: monospace;
-        }
-
-        .price-up { color: hsl(var(--chart-positive)); }
-        .price-down { color: hsl(var(--chart-negative)); }
-
-        /* Tick History */
         .tick-history {
-            background: hsl(var(--card));
+            background: #1e293b;
             border-radius: 12px;
             padding: 20px;
-            border: 1px solid hsl(var(--border));
-            margin-top: 24px;
-        }
-
-        .tick-history h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            color: hsl(var(--foreground) / 0.8);
+            margin-top: 20px;
         }
 
         .tick-pattern {
             display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 16px;
+            gap: 8px;
+            margin: 15px 0;
         }
 
-        .tick-dot {
-            width: 24px;
-            height: 24px;
+        .tick-rise {
+            width: 30px;
+            height: 30px;
+            background: #10b981;
             border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
-        .tick-rise {
-            background: hsla(var(--chart-positive) / 0.15);
-            color: hsl(var(--chart-positive));
+            color: white;
+            font-weight: bold;
         }
 
         .tick-fall {
-            background: hsla(var(--chart-negative) / 0.15);
-            color: hsl(var(--chart-negative));
-        }
-
-        .tick-neutral {
-            background: hsl(var(--secondary));
-            color: hsl(var(--foreground) / 0.6);
-        }
-
-        /* Sidebar */
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .symbol-selector {
-            background: hsl(var(--card));
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid hsl(var(--border));
-        }
-
-        .symbol-selector h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 16px;
-        }
-
-        .symbol-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .symbol-item {
-            padding: 12px 16px;
-            border-radius: 8px;
-            border: 1px solid hsl(var(--border));
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .symbol-item:hover {
-            background: hsl(var(--secondary));
-            border-color: hsl(var(--primary) / 0.3);
-        }
-
-        .symbol-item.active {
-            background: hsl(var(--primary) / 0.1);
-            border-color: hsl(var(--primary));
-        }
-
-        .symbol-badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .badge-1s {
-            background: hsl(var(--primary) / 0.1);
-            color: hsl(var(--primary));
-        }
-
-        .badge-standard {
-            background: hsl(var(--secondary));
-            color: hsl(var(--foreground) / 0.8);
-        }
-
-        /* Stats */
-        .stats {
-            display: flex;
-            gap: 20px;
-            margin-top: 12px;
-            font-size: 14px;
-        }
-
-        .stat-rise {
-            color: hsl(var(--chart-positive));
-            font-weight: 600;
-        }
-
-        .stat-fall {
-            color: hsl(var(--chart-negative));
-            font-weight: 600;
-        }
-
-        /* Theme Toggle */
-        .theme-toggle {
+            width: 30px;
+            height: 30px;
+            background: #ef4444;
+            border-radius: 6px;
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 10px 16px;
-            background: hsl(var(--secondary));
-            border-radius: 8px;
-            border: 1px solid hsl(var(--border));
-            cursor: pointer;
-        }
-
-        /* TradingView Chart */
-        #tradingview_chart {
-            width: 100%;
-            height: 500px;
-            border-radius: 12px;
-            overflow: hidden;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
         }
 
         @media (max-width: 1024px) {
-            .dashboard-grid {
+            .dashboard {
                 grid-template-columns: 1fr;
             }
         }
@@ -312,115 +116,42 @@
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
         <div class="header">
-            <div>
-                <h1>📊 Trading Dashboard</h1>
-                <p style="color: hsl(var(--foreground) / 0.6); margin-top: 4px;">
-                    Real-time volatility indices with tick history
-                </p>
-            </div>
-            <div class="theme-toggle" onclick="toggleTheme()">
-                <span id="theme-icon">🌙</span>
-                <span id="theme-text">Dark Mode</span>
-            </div>
+            <h1>Trading Dashboard</h1>
+            <p>Your Lovable project deployed to GitHub Pages</p>
         </div>
 
-        <!-- Dashboard Grid -->
-        <div class="dashboard-grid">
-            <!-- Main Chart Area -->
+        <div class="dashboard">
             <div class="main-area">
-                <!-- Ticker Display -->
-                <div class="ticker-display">
-                    <div class="ticker-info">
-                        <h3 id="current-symbol-name">Volatility 10 (1s) Index</h3>
-                        <div class="ticker-symbol" id="current-symbol">1HZ10V</div>
-                    </div>
-                    <div class="ticker-price price-up" id="current-price">
-                        15.4321
-                    </div>
-                    <div class="ticker-change">
-                        <div class="change-amount price-up" id="change-amount">+0.1234</div>
-                        <div class="change-percent price-up" id="change-percent">(+0.80%)</div>
+                <div class="chart-area">
+                    <h2>Live Chart</h2>
+                    <div class="chart-placeholder">
+                        <h3>TradingView Chart Area</h3>
+                        <p>This would show your live trading chart</p>
                     </div>
                 </div>
 
-                <!-- Chart Controls -->
-                <div class="controls">
-                    <button class="btn" onclick="addIndicator('Volume')">Volume</button>
-                    <button class="btn" onclick="addIndicator('MACD')">MACD</button>
-                    <button class="btn" onclick="addIndicator('RSI')">RSI</button>
-                    <button class="btn" onclick="addIndicator('Bollinger Bands')">Bollinger</button>
-                    <button class="btn" onclick="clearIndicators()">Clear Indicators</button>
-                </div>
-
-                <!-- TradingView Chart -->
-                <div class="chart-section">
-                    <div id="tradingview_chart"></div>
-                </div>
-
-                <!-- Tick History -->
                 <div class="tick-history">
-                    <h3>Tick History (Last 20 Ticks)</h3>
-                    <div class="tick-pattern" id="tick-pattern">
-                        <!-- Generated by JavaScript -->
+                    <h3>Tick History</h3>
+                    <div class="tick-pattern" id="tickPattern">
+                        <!-- Generated by JS -->
                     </div>
-                    <div class="stats">
-                        <div class="stat-rise">R: <span id="rise-count">12</span> (<span id="rise-percent">60</span>%)</div>
-                        <div class="stat-fall">F: <span id="fall-count">8</span> (<span id="fall-percent">40</span>%)</div>
+                    <div style="display: flex; gap: 20px;">
+                        <div style="color: #10b981;">Rises: <span id="riseCount">0</span></div>
+                        <div style="color: #ef4444;">Falls: <span id="fallCount">0</span></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Sidebar -->
             <div class="sidebar">
-                <!-- Symbol Selector -->
-                <div class="symbol-selector">
-                    <h3>Volatility Indices</h3>
-                    <div class="symbol-list" id="symbol-list">
-                        <!-- Generated by JavaScript -->
-                    </div>
-                </div>
-
-                <!-- Connection Status -->
-                <div class="symbol-selector">
-                    <h3>Connection Status</h3>
-                    <div style="display: flex; align-items: center; gap: 12px; margin-top: 16px;">
-                        <div id="connection-status" style="
-                            width: 12px;
-                            height: 12px;
-                            border-radius: 50%;
-                            background: #10b981;
-                            animation: pulse 2s infinite;
-                        "></div>
-                        <span>WebSocket: <strong>Connected</strong></span>
-                    </div>
-                    <div style="font-size: 14px; color: hsl(var(--foreground) / 0.6); margin-top: 12px;">
-                        <p>✓ Real-time tick updates</p>
-                        <p>✓ 1-second intervals for fast ticks</p>
-                        <p>✓ Live volatility data</p>
-                    </div>
-                </div>
-
-                <!-- Current Stats -->
-                <div class="symbol-selector">
-                    <h3>Market Summary</h3>
-                    <div style="margin-top: 16px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span>Total Ticks:</span>
-                            <strong id="total-ticks">245</strong>
+                <div style="background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                    <h3>Symbols</h3>
+                    <div style="margin-top: 15px;">
+                        <div style="padding: 10px; background: #0f172a; border-radius: 8px; margin-bottom: 8px;">
+                            <strong>1HZ10V</strong> - Volatility 10 (1s) Index
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span>Current Trend:</span>
-                            <strong class="price-up" id="current-trend">Bullish</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span>Volatility:</span>
-                            <strong>High</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Last Update:</span>
-                            <strong id="last-update">Just now</strong>
+                        <div style="padding: 10px; background: #0f172a; border-radius: 8px; margin-bottom: 8px;">
+                            <strong>R_10</strong> - Volatility 10 Index
                         </div>
                     </div>
                 </div>
@@ -429,272 +160,33 @@
     </div>
 
     <script>
-        // Volatility Symbols Data (from your SymbolSelector.tsx)
-        const VOLATILITY_SYMBOLS = [
-            { symbol: '1HZ10V', name: 'Volatility 10 (1s) Index', type: '1s' },
-            { symbol: 'R_10', name: 'Volatility 10 Index', type: 'standard' },
-            { symbol: '1HZ15V', name: 'Volatility 15 (1s) Index', type: '1s' },
-            { symbol: '1HZ25V', name: 'Volatility 25 (1s) Index', type: '1s' },
-            { symbol: 'R_25', name: 'Volatility 25 Index', type: 'standard' },
-            { symbol: '1HZ30V', name: 'Volatility 30 (1s) Index', type: '1s' },
-            { symbol: '1HZ50V', name: 'Volatility 50 (1s) Index', type: '1s' },
-            { symbol: 'R_50', name: 'Volatility 50 Index', type: 'standard' },
-            { symbol: '1HZ75V', name: 'Volatility 75 (1s) Index', type: '1s' },
-            { symbol: 'R_75', name: 'Volatility 75 Index', type: 'standard' },
-            { symbol: '1HZ90V', name: 'Volatility 90 (1s) Index', type: '1s' },
-            { symbol: '1HZ100V', name: 'Volatility 100 (1s) Index', type: '1s' },
-            { symbol: 'R_100', name: 'Volatility 100 Index', type: 'standard' },
-        ];
-
-        // TradingView Widget
-        let widget = null;
-        let currentSymbol = '1HZ10V';
-        let currentTheme = 'dark';
-
-        // Generate random tick pattern (simulating your TickHistory component)
+        // Simulate tick data
         function generateTickPattern() {
-            const ticks = [];
-            const directions = ['rise', 'fall', 'neutral'];
-            
-            for (let i = 0; i < 20; i++) {
-                const direction = directions[Math.floor(Math.random() * directions.length)];
-                ticks.push({ direction, epoch: Date.now() + i });
-            }
-            
-            return ticks;
-        }
-
-        // Render tick pattern (simulating TickHistory.tsx)
-        function renderTickPattern(ticks) {
-            const container = document.getElementById('tick-pattern');
+            const pattern = ['R', 'F', 'R', 'R', 'F', 'F', 'R', 'F', 'R', 'R'];
+            const container = document.getElementById('tickPattern');
             container.innerHTML = '';
             
-            let riseCount = 0;
-            let fallCount = 0;
+            let rises = 0;
+            let falls = 0;
             
-            ticks.forEach((tick, idx) => {
-                const tickEl = document.createElement('div');
-                let className = 'tick-dot ';
-                let text = '-';
+            pattern.forEach(tick => {
+                const div = document.createElement('div');
+                div.className = tick === 'R' ? 'tick-rise' : 'tick-fall';
+                div.textContent = tick;
+                container.appendChild(div);
                 
-                if (tick.direction === 'rise') {
-                    className += 'tick-rise';
-                    text = 'R';
-                    riseCount++;
-                } else if (tick.direction === 'fall') {
-                    className += 'tick-fall';
-                    text = 'F';
-                    fallCount++;
-                } else {
-                    className += 'tick-neutral';
-                    text = '-';
-                }
-                
-                if (idx === ticks.length - 1) {
-                    className += ' current-tick';
-                }
-                
-                tickEl.className = className;
-                tickEl.textContent = text;
-                container.appendChild(tickEl);
+                if (tick === 'R') rises++;
+                else falls++;
             });
             
-            // Update stats
-            const total = ticks.length;
-            document.getElementById('rise-count').textContent = riseCount;
-            document.getElementById('fall-count').textContent = fallCount;
-            document.getElementById('rise-percent').textContent = Math.round((riseCount / total) * 100);
-            document.getElementById('fall-percent').textContent = Math.round((fallCount / total) * 100);
+            document.getElementById('riseCount').textContent = rises;
+            document.getElementById('fallCount').textContent = falls;
         }
-
-        // Update price display (simulating TickerDisplay.tsx)
-        function updatePriceDisplay(symbol) {
-            const symbolInfo = VOLATILITY_SYMBOLS.find(s => s.symbol === symbol);
-            
-            // Generate random price between 10 and 20
-            const basePrice = 15 + (Math.random() - 0.5) * 2;
-            const change = (Math.random() - 0.5) * 0.5;
-            const newPrice = basePrice + change;
-            const percentChange = (change / basePrice) * 100;
-            
-            document.getElementById('current-symbol-name').textContent = symbolInfo.name;
-            document.getElementById('current-symbol').textContent = symbol;
-            document.getElementById('current-price').textContent = newPrice.toFixed(4);
-            document.getElementById('change-amount').textContent = (change >= 0 ? '+' : '') + change.toFixed(4);
-            document.getElementById('change-percent').textContent = `(${(percentChange >= 0 ? '+' : '') + percentChange.toFixed(3)}%)`;
-            
-            // Update color based on change
-            const priceColor = change >= 0 ? 'price-up' : 'price-down';
-            document.getElementById('current-price').className = `ticker-price ${priceColor}`;
-            document.getElementById('change-amount').className = `change-amount ${priceColor}`;
-            document.getElementById('change-percent').className = `change-percent ${priceColor}`;
-            
-            // Update trend
-            document.getElementById('current-trend').textContent = change >= 0 ? 'Bullish' : 'Bearish';
-            document.getElementById('current-trend').className = change >= 0 ? 'price-up' : 'price-down';
-            
-            // Update last update time
-            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-        }
-
-        // Initialize TradingView Widget
-        function initTradingView() {
-            if (typeof TradingView === 'undefined') {
-                console.error('TradingView script not loaded');
-                return;
-            }
-            
-            widget = new TradingView.widget({
-                "container_id": "tradingview_chart",
-                "width": "100%",
-                "height": "500",
-                "symbol": currentSymbol,
-                "interval": "1",
-                "timezone": "Etc/UTC",
-                "theme": currentTheme,
-                "style": "1",
-                "locale": "en",
-                "toolbar_bg": "#f1f3f6",
-                "enable_publishing": false,
-                "withdateranges": true,
-                "hide_side_toolbar": false,
-                "allow_symbol_change": true,
-                "details": true,
-                "hotlist": true,
-                "calendar": true,
-                "studies": [
-                    "Volume@tv-basicstudies"
-                ],
-                "show_popup_button": true,
-                "popup_width": "1000",
-                "popup_height": "650",
-                "support_host": "https://www.tradingview.com"
-            });
-        }
-
-        // Change symbol in TradingView
-        function changeSymbol(symbol) {
-            currentSymbol = symbol;
-            
-            if (widget && widget.chart) {
-                widget.chart().setSymbol(symbol, null, () => {
-                    console.log(`Changed to ${symbol}`);
-                    updatePriceDisplay(symbol);
-                    updateActiveSymbol(symbol);
-                    
-                    // Generate new tick pattern
-                    const newTicks = generateTickPattern();
-                    renderTickPattern(newTicks);
-                });
-            } else {
-                // If widget not ready, just update display
-                updatePriceDisplay(symbol);
-                updateActiveSymbol(symbol);
-            }
-        }
-
-        // Update active symbol in sidebar
-        function updateActiveSymbol(symbol) {
-            document.querySelectorAll('.symbol-item').forEach(item => {
-                item.classList.remove('active');
-                if (item.dataset.symbol === symbol) {
-                    item.classList.add('active');
-                }
-            });
-        }
-
-        // Add indicator to chart
-        function addIndicator(indicator) {
-            if (widget && widget.chart) {
-                // This is a simplified version - real implementation would be more complex
-                widget.chart().executeActionById('insertIndicator');
-                alert(`Adding ${indicator} indicator to chart`);
-            }
-        }
-
-        // Clear all indicators
-        function clearIndicators() {
-            if (widget && widget.chart) {
-                // Simplified - in reality would need to remove each indicator
-                alert('Clearing all indicators');
-            }
-        }
-
-        // Toggle theme
-        function toggleTheme() {
-            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            
-            // Update body class
-            document.body.classList.toggle('dark');
-            
-            // Update TradingView theme if widget exists
-            if (widget) {
-                widget.setTheme(currentTheme);
-            }
-            
-            // Update toggle button
-            const icon = document.getElementById('theme-icon');
-            const text = document.getElementById('theme-text');
-            
-            if (currentTheme === 'dark') {
-                icon.textContent = '🌙';
-                text.textContent = 'Dark Mode';
-            } else {
-                icon.textContent = '☀️';
-                text.textContent = 'Light Mode';
-            }
-        }
-
-        // Initialize symbol list
-        function initSymbolList() {
-            const container = document.getElementById('symbol-list');
-            
-            VOLATILITY_SYMBOLS.forEach(symbol => {
-                const item = document.createElement('div');
-                item.className = `symbol-item ${symbol.symbol === currentSymbol ? 'active' : ''}`;
-                item.dataset.symbol = symbol.symbol;
-                
-                item.innerHTML = `
-                    <div>
-                        <div style="font-weight: 500;">${symbol.name}</div>
-                        <div style="font-size: 12px; color: hsl(var(--foreground) / 0.6);">${symbol.symbol}</div>
-                    </div>
-                    <span class="symbol-badge ${symbol.type === '1s' ? 'badge-1s' : 'badge-standard'}">
-                        ${symbol.type === '1s' ? '1s' : 'Std'}
-                    </span>
-                `;
-                
-                item.addEventListener('click', () => changeSymbol(symbol.symbol));
-                container.appendChild(item);
-            });
-        }
-
-        // Initialize everything when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize symbol list
-            initSymbolList();
-            
-            // Initialize price display
-            updatePriceDisplay(currentSymbol);
-            
-            // Initialize tick pattern
-            const ticks = generateTickPattern();
-            renderTickPattern(ticks);
-            
-            // Initialize TradingView
-            setTimeout(() => {
-                initTradingView();
-            }, 1000);
-            
-            // Simulate live updates
-            setInterval(() => {
-                const ticks = generateTickPattern();
-                renderTickPattern(ticks);
-                updatePriceDisplay(currentSymbol);
-                document.getElementById('total-ticks').textContent = 
-                    Math.floor(Math.random() * 100) + 200;
-            }, 3000);
-        });
+        
+        generateTickPattern();
+        
+        // Update every 3 seconds
+        setInterval(generateTickPattern, 3000);
     </script>
 </body>
 </html>
