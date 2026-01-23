@@ -701,31 +701,6 @@
                 font-size: 16px;
             }
         }
-
-        /* CCI Value Display */
-        .cci-value {
-            position: absolute;
-            bottom: 5px;
-            right: 5px;
-            font-size: 11px;
-            color: var(--foreground);
-            background: rgba(0, 0, 0, 0.5);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-weight: 600;
-        }
-
-        .cci-overbought {
-            color: #ef4444;
-        }
-
-        .cci-oversold {
-            color: #10b981;
-        }
-
-        .cci-neutral {
-            color: #f59e0b;
-        }
     </style>
 </head>
 <body>
@@ -884,13 +859,9 @@
                     <div class="cci-controls">
                         <span style="font-size: 12px; color: var(--muted-foreground);">CCI Indicator:</span>
                         <button class="cci-toggle" onclick="toggleCCI()" id="cciToggle">OFF</button>
-                        <div id="currentCCIText" style="font-size: 12px; margin-left: auto; color: var(--muted-foreground);">
-                            Current: <span id="currentCCIValue">0</span>
-                        </div>
                     </div>
                     <div class="cci-container" id="cciContainer" style="display: none;">
                         <canvas class="cci-canvas" id="cciCanvas"></canvas>
-                        <div class="cci-value" id="cciValueDisplay">CCI: 0</div>
                     </div>
 
                     <!-- Tick History Panel -->
@@ -1073,23 +1044,14 @@
         let showMACD = false;
         let showCCI = false;
         
-        // CCI data
-        let cciValues = [];
-        let currentCCI = 0;
-        
-        // Countdown tracking
-        let nextCandleTime = 0;
-        let currentCandleStart = 0;
-        
         // Subscription tracking
         let currentTickSubscription = null;
         let currentCandleSubscription = null;
         
         // Chart constants
         const MIN_VISIBLE_CANDLES = 20;
-        const MAX_VISIBLE_CANDLES = 100;
         const ZOOM_STEP = 0.2;
-        const CHART_MARGIN = { top: 20, right: 50, left: 60, bottom: 30 };
+        const CHART_MARGIN = { top: 20, right: 50, left: 60, bottom: 20 };
         const DRAWING_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
 
         // ======================
@@ -1137,7 +1099,6 @@
             updateActiveIndicatorsUI();
             updateLegend();
             
-            // Start countdown timer
             setInterval(updateCountdown, 100);
         }
 
@@ -1215,11 +1176,6 @@
                     
                     subscribeToSymbol(activeSymbol);
                     getCandles(activeSymbol, activeTimeframe);
-                    
-                    // Initialize next candle time
-                    const now = Math.floor(Date.now() / 1000);
-                    currentCandleStart = Math.floor(now / activeTimeframe) * activeTimeframe;
-                    nextCandleTime = currentCandleStart + activeTimeframe;
                 };
                 
                 socket.onmessage = function(event) {
@@ -1245,6 +1201,7 @@
             } catch (error) {
                 console.error('Failed to connect:', error);
                 updateConnectionStatus('Failed', '#ef4444');
+                startSimulation();
             }
         }
 
@@ -1348,7 +1305,7 @@
                 ticks_history: symbol,
                 style: 'candles',
                 granularity: derivGranularity,
-                count: 200,
+                count: 100,
                 end: 'latest',
                 subscribe: 1
             };
@@ -1392,6 +1349,8 @@
         // ======================
         // DATA HANDLING
         // ======================
+        let isSimulationRunning = false;
+
         function handleTickData(tick) {
             if (!tick || !tick.quote) return;
             
@@ -1428,11 +1387,7 @@
         function updateChartWithTick(tick) {
             const candleEpoch = Math.floor(tick.epoch / activeTimeframe) * activeTimeframe;
             
-            // Update next candle time
-            const now = Math.floor(Date.now() / 1000);
-            currentCandleStart = Math.floor(now / activeTimeframe) * activeTimeframe;
-            nextCandleTime = currentCandleStart + activeTimeframe;
-            
+            // Check if we have candles, and find the latest one
             if (candles.length === 0) {
                 // First candle - add to end (right side)
                 const newCandle = {
@@ -1443,7 +1398,7 @@
                     epoch: candleEpoch,
                     symbol: activeSymbol
                 };
-                candles.push(newCandle);
+                candles.push(newCandle); // PUSH to end (right side)
             } else {
                 // Get the most recent candle (last in array since we push to end)
                 const currentCandle = candles[candles.length - 1];
@@ -1463,20 +1418,14 @@
                         epoch: candleEpoch,
                         symbol: activeSymbol
                     };
-                    candles.push(newCandle);
+                    candles.push(newCandle); // PUSH to end (right side)
                     
                     // Keep array size manageable
-                    if (candles.length > 500) {
-                        candles.shift();
-                        if (cciValues.length > 0) {
-                            cciValues.shift();
-                        }
+                    if (candles.length > 200) {
+                        candles.shift(); // Remove from beginning (left side)
                     }
                 }
             }
-            
-            // Calculate CCI
-            calculateCCI();
             
             drawChart();
             drawOverlay();
@@ -1488,26 +1437,20 @@
             if (!candlesData || !candlesData.length) return;
             
             // Convert candles to array with oldest first (left side)
-            candles = candlesData.map(candle => ({
+            const newCandles = candlesData.map(candle => ({
                 open: parseFloat(candle.open),
                 high: parseFloat(candle.high),
                 low: parseFloat(candle.low),
                 close: parseFloat(candle.close),
                 epoch: candle.epoch,
                 symbol: activeSymbol
-            })).reverse(); // Reverse to get oldest first
+            }));
+            
+            candles = newCandles; // Candles are in chronological order (oldest first)
             
             if (candles.length > 0) {
-                currentPrice = candles[candles.length - 1].close;
+                currentPrice = candles[candles.length - 1].close; // Latest candle is last
                 updatePriceDisplay();
-                
-                // Calculate CCI for all candles
-                calculateCCI();
-                
-                // Set next candle time
-                const latestCandle = candles[candles.length - 1];
-                currentCandleStart = latestCandle.epoch;
-                nextCandleTime = currentCandleStart + activeTimeframe;
             }
             
             drawChart();
@@ -1529,13 +1472,10 @@
             updatePriceDisplay();
             
             if (candles.length > 0) {
-                const lastCandle = candles[candles.length - 1];
+                const lastCandle = candles[candles.length - 1]; // Get the latest candle (rightmost)
                 lastCandle.close = currentPrice;
                 lastCandle.high = Math.max(lastCandle.high, currentPrice);
                 lastCandle.low = Math.min(lastCandle.low, currentPrice);
-                
-                // Update CCI
-                calculateCCI();
                 
                 drawChart();
                 drawOverlay();
@@ -1545,82 +1485,142 @@
         }
 
         // ======================
-        // CCI CALCULATION
+        // SIMULATION (FALLBACK)
         // ======================
-        function calculateCCI() {
-            if (candles.length < 20) return;
+        function startSimulation() {
+            if (isSimulationRunning) return;
             
-            cciValues = [];
-            const period = 20;
-            const multiplier = 0.015;
+            const symbolInfo = SYNTHETIC_INDICES[activeSymbol];
+            if (!symbolInfo) return;
             
-            for (let i = period - 1; i < candles.length; i++) {
-                // Calculate typical price for the period
-                let tpSum = 0;
-                let tpArray = [];
-                
-                for (let j = 0; j < period; j++) {
-                    const idx = i - j;
-                    const tp = (candles[idx].high + candles[idx].low + candles[idx].close) / 3;
-                    tpSum += tp;
-                    tpArray.push(tp);
+            generateInitialCandles();
+            isSimulationRunning = true;
+            
+            const simulationInterval = setInterval(() => {
+                if (!isSimulationRunning) {
+                    clearInterval(simulationInterval);
+                    return;
                 }
+                simulateTick();
+            }, 1000);
+        }
+
+        function generateInitialCandles() {
+            const symbolInfo = SYNTHETIC_INDICES[activeSymbol];
+            const now = Math.floor(Date.now() / 1000);
+            const basePrice = symbolInfo.basePrice;
+            
+            candles = [];
+            // Generate candles with oldest first (left side)
+            for (let i = 0; i < 100; i++) {
+                const timeOffset = i * activeTimeframe;
+                const candleTime = now - (100 - i) * activeTimeframe;
                 
-                const tpAvg = tpSum / period;
+                // Generate more realistic price movements
+                const volatility = getVolatilityForSymbol(activeSymbol);
+                const prevClose = i > 0 ? candles[i - 1].close : basePrice;
+                const change = (Math.random() - 0.5) * volatility * 2;
+                const close = prevClose * (1 + change/100);
+                const open = prevClose;
+                const high = Math.max(open, close) + Math.abs(change * volatility/2);
+                const low = Math.min(open, close) - Math.abs(change * volatility/2);
                 
-                // Calculate mean deviation
-                let mdSum = 0;
-                for (let j = 0; j < period; j++) {
-                    mdSum += Math.abs(tpArray[j] - tpAvg);
-                }
-                const meanDev = mdSum / period;
-                
-                // Calculate CCI for current candle
-                const currentTP = (candles[i].high + candles[i].low + candles[i].close) / 3;
-                const cci = meanDev !== 0 ? (currentTP - tpAvg) / (multiplier * meanDev) : 0;
-                
-                cciValues.push({
-                    value: cci,
-                    epoch: candles[i].epoch
+                candles.push({
+                    open: open,
+                    high: high,
+                    low: low,
+                    close: close,
+                    epoch: candleTime,
+                    symbol: activeSymbol
                 });
             }
             
-            // Update current CCI value
-            if (cciValues.length > 0) {
-                currentCCI = cciValues[cciValues.length - 1].value;
-                updateCCIDisplay();
-            }
+            currentPrice = candles.length > 0 ? candles[candles.length - 1].close : basePrice;
+            
+            drawChart();
+            drawOverlay();
+            if (showMACD) drawMACD();
+            if (showCCI) drawCCI();
+            updatePriceDisplay();
         }
 
-        function updateCCIDisplay() {
-            const cciValueElement = document.getElementById('cciValueDisplay');
-            const currentCCIElement = document.getElementById('currentCCIValue');
+        function getVolatilityForSymbol(symbol) {
+            const volatilityMap = {
+                '1HZ10V': 0.5,
+                'R_10': 0.4,
+                '1HZ15V': 0.6,
+                '1HZ25V': 0.8,
+                'R_25': 0.7,
+                '1HZ30V': 1.0,
+                '1HZ50V': 1.2,
+                'R_50': 1.1,
+                '1HZ75V': 1.5,
+                'R_75': 1.4,
+                '1HZ90V': 1.8,
+                '1HZ100V': 2.0,
+                'R_100': 1.9
+            };
+            return volatilityMap[symbol] || 1.0;
+        }
+
+        function simulateTick() {
+            const symbolInfo = SYNTHETIC_INDICES[activeSymbol];
+            if (!symbolInfo) return;
             
-            if (cciValueElement) {
-                cciValueElement.textContent = `CCI: ${currentCCI.toFixed(2)}`;
+            const volatility = getVolatilityForSymbol(activeSymbol);
+            const change = (Math.random() - 0.5) * volatility;
+            previousPrice = currentPrice;
+            currentPrice = currentPrice > 0 ? currentPrice * (1 + change/100) : symbolInfo.basePrice;
+            
+            const newTick = {
+                quote: currentPrice,
+                epoch: Math.floor(Date.now() / 1000),
+                symbol: activeSymbol
+            };
+            
+            ticks.unshift(newTick);
+            if (ticks.length > 100) {
+                ticks.pop();
+            }
+            
+            const currentPeriod = Math.floor(newTick.epoch / activeTimeframe) * activeTimeframe;
+            
+            if (candles.length > 0) {
+                const latestCandle = candles[candles.length - 1];
                 
-                // Color code based on CCI value
-                if (currentCCI > 100) {
-                    cciValueElement.className = 'cci-value cci-overbought';
-                } else if (currentCCI < -100) {
-                    cciValueElement.className = 'cci-value cci-oversold';
+                if (currentPeriod === latestCandle.epoch) {
+                    // Update existing candle
+                    latestCandle.close = currentPrice;
+                    latestCandle.high = Math.max(latestCandle.high, currentPrice);
+                    latestCandle.low = Math.min(latestCandle.low, currentPrice);
                 } else {
-                    cciValueElement.className = 'cci-value cci-neutral';
+                    // Create new candle at the end (right side)
+                    const newCandle = {
+                        epoch: currentPeriod,
+                        open: currentPrice,
+                        high: currentPrice,
+                        low: currentPrice,
+                        close: currentPrice,
+                        symbol: activeSymbol
+                    };
+                    candles.push(newCandle);
+                    
+                    // Keep array size manageable
+                    if (candles.length > 200) {
+                        candles.shift(); // Remove from beginning (left side)
+                    }
                 }
             }
             
-            if (currentCCIElement) {
-                currentCCIElement.textContent = currentCCI.toFixed(2);
-                
-                // Color code the sidebar value
-                if (currentCCI > 100) {
-                    currentCCIElement.style.color = '#ef4444';
-                } else if (currentCCI < -100) {
-                    currentCCIElement.style.color = '#10b981';
-                } else {
-                    currentCCIElement.style.color = '#f59e0b';
-                }
-            }
+            updatePriceDisplay();
+            updateTickHistory();
+            updateTickIndicator();
+            updateLastUpdate();
+            updateMarketData();
+            drawChart();
+            drawOverlay();
+            if (showMACD) drawMACD();
+            if (showCCI) drawCCI();
         }
 
         // ======================
@@ -1637,16 +1637,14 @@
                 return;
             }
             
-            // Calculate visible range
+            // Calculate visible range - we want to show newest candles on right
             const totalCandles = candles.length;
-            const visibleCount = Math.min(
-                MAX_VISIBLE_CANDLES,
-                Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel))
-            );
+            const visibleCount = Math.max(MIN_VISIBLE_CANDLES, Math.floor(totalCandles / zoomLevel));
             const maxOffset = Math.max(0, totalCandles - visibleCount);
             const clampedOffset = Math.min(Math.max(0, panOffset), maxOffset);
             
-            const startIndex = Math.floor(clampedOffset);
+            // We want to show from startIndex to end, with newest on right
+            const startIndex = clampedOffset;
             const endIndex = Math.min(startIndex + visibleCount, totalCandles);
             const visibleCandlesData = candles.slice(startIndex, endIndex);
             
@@ -1722,9 +1720,10 @@
                 }
             });
             
-            // Add padding
+            // Add padding based on symbol volatility
+            const symbolVolatility = getVolatilityForSymbol(activeSymbol);
             const range = maxPrice - minPrice;
-            const padding = range * 0.1;
+            const padding = range * 0.1 + symbolVolatility;
             
             return { 
                 min: Math.max(0.01, minPrice - padding), 
@@ -1739,6 +1738,7 @@
 
         function drawGrid(minPrice, maxPrice) {
             const chartHeightAdj = chartHeight - CHART_MARGIN.top - CHART_MARGIN.bottom;
+            const pixelPerPrice = chartHeightAdj / (maxPrice - minPrice);
             
             ctx.strokeStyle = document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)';
             ctx.lineWidth = 1;
@@ -1786,7 +1786,7 @@
             ctx.textAlign = 'center';
             
             // Show time at the bottom
-            const y = chartHeight - 10;
+            const y = chartHeight - 5;
             
             // Show first, middle, and last candle times
             const indices = [0, Math.floor(visibleCandles.length / 2), visibleCandles.length - 1];
@@ -1820,27 +1820,13 @@
             const chartHeightAdj = chartHeight - CHART_MARGIN.top - CHART_MARGIN.bottom;
             
             const candleCount = visibleCandles.length;
-            
-            // FIXED: Calculate consistent candle width and spacing
-            const maxCandleWidth = 20;
-            const minCandleWidth = 1;
-            const spacingFactor = 0.2; // 20% spacing between candles
-            
-            // Calculate available space per candle
-            const spacePerCandle = chartWidthAdj / candleCount;
-            
-            // Calculate candle width (70% of available space, capped)
-            const candleWidth = Math.max(minCandleWidth, Math.min(maxCandleWidth, spacePerCandle * (1 - spacingFactor)));
-            
-            // Calculate spacing (evenly distributed)
-            const totalSpacing = chartWidthAdj - (candleWidth * candleCount);
-            const candleSpacing = totalSpacing / Math.max(1, candleCount - 1);
+            const candleWidth = Math.max(1, Math.min(10, chartWidthAdj / candleCount * 0.7));
+            const candleSpacing = (chartWidthAdj / candleCount) - candleWidth;
             
             const pixelPerPrice = chartHeightAdj / (priceRange.max - priceRange.min);
             
             visibleCandles.forEach((candle, index) => {
-                // Calculate X position with even spacing
-                const x = CHART_MARGIN.left + (index * (candleWidth + candleSpacing));
+                const x = CHART_MARGIN.left + index * (candleWidth + candleSpacing);
                 const isBullish = candle.close >= candle.open;
                 
                 // Calculate Y positions
@@ -1863,8 +1849,6 @@
                 // Draw body
                 ctx.fillStyle = isBullish ? '#10b981' : '#ef4444';
                 ctx.fillRect(x, bodyTop, candleWidth, bodyHeight);
-                
-                // Draw body border
                 ctx.strokeStyle = isBullish ? '#10b981' : '#ef4444';
                 ctx.strokeRect(x, bodyTop, candleWidth, bodyHeight);
             });
@@ -1996,6 +1980,7 @@
 
         function drawSMA(visibleCandles, priceRange) {
             drawIndicatorLine(visibleCandles, priceRange, (candle, index) => {
+                // Find the index of this candle in the full candles array
                 const candleEpoch = candle.epoch;
                 const fullIndex = candles.findIndex(c => c.epoch === candleEpoch);
                 if (fullIndex === -1) return null;
@@ -2131,41 +2116,6 @@
         }
 
         // ======================
-        // COUNTDOWN TIMER
-        // ======================
-        function updateCountdown() {
-            if (candles.length === 0) return;
-            
-            const now = Math.floor(Date.now() / 1000);
-            
-            // Calculate remaining time for next candle
-            const remaining = Math.max(0, nextCandleTime - now);
-            
-            const countdownElement = document.getElementById('candleCountdownValue');
-            
-            if (remaining > 0) {
-                countdownElement.textContent = `${remaining}s`;
-                
-                // Color coding based on time remaining
-                if (remaining < 3) {
-                    countdownElement.style.color = '#ef4444'; // Red for last 3 seconds
-                } else if (remaining < 10) {
-                    countdownElement.style.color = '#f59e0b'; // Orange for last 10 seconds
-                } else {
-                    countdownElement.style.color = '#3b82f6'; // Blue for normal
-                }
-            } else {
-                // If time has passed, show 0s and recalculate next candle time
-                countdownElement.textContent = '0s';
-                countdownElement.style.color = '#ef4444';
-                
-                // Recalculate next candle time
-                const currentTime = Math.floor(now / activeTimeframe) * activeTimeframe;
-                nextCandleTime = currentTime + activeTimeframe;
-            }
-        }
-
-        // ======================
         // UI CONTROLS
         // ======================
         function setChartType(type) {
@@ -2209,12 +2159,6 @@
             // Clear existing data
             candles = [];
             ticks = [];
-            cciValues = [];
-            
-            // Update next candle time
-            const now = Math.floor(Date.now() / 1000);
-            currentCandleStart = Math.floor(now / timeframe) * timeframe;
-            nextCandleTime = currentCandleStart + timeframe;
             
             // If we are connected, unsubscribe from current candles (if any) and then get new candles
             if (isConnected) {
@@ -2234,6 +2178,8 @@
                     // For 1s symbols or 1s timeframe, use tick data
                     console.log(`Using tick data for ${activeSymbol} (${timeframeText})`);
                 }
+            } else {
+                generateInitialCandles();
             }
             
             // Reset zoom and pan
@@ -2287,6 +2233,9 @@
         }
 
         function changeSymbol(symbol) {
+            // Stop any running simulation
+            isSimulationRunning = false;
+            
             // Unsubscribe from current tick and candle subscriptions
             if (isConnected) {
                 unsubscribeFromTicks();
@@ -2303,18 +2252,12 @@
             // Clear existing data
             candles = [];
             ticks = [];
-            cciValues = [];
             currentPrice = 0;
             previousPrice = 0;
             
             // Reset chart
             panOffset = 0;
             zoomLevel = 1;
-            
-            // Update next candle time
-            const now = Math.floor(Date.now() / 1000);
-            currentCandleStart = Math.floor(now / activeTimeframe) * activeTimeframe;
-            nextCandleTime = currentCandleStart + activeTimeframe;
             
             // Request new data
             if (isConnected) {
@@ -2328,6 +2271,8 @@
                     // For 1s symbols or 1s timeframe, use tick data
                     console.log(`Using tick data for ${symbol}`);
                 }
+            } else {
+                generateInitialCandles();
             }
             
             drawChart();
@@ -2591,15 +2536,34 @@
             let low24h = Infinity;
             
             const hours24 = Math.min(candles.length, 24 * 60 * 60 / activeTimeframe);
-            const startIndex = Math.max(0, candles.length - hours24);
-            
-            for (let i = startIndex; i < candles.length; i++) {
+            for (let i = Math.max(0, candles.length - hours24); i < candles.length; i++) {
                 high24h = Math.max(high24h, candles[i].high);
                 low24h = Math.min(low24h, candles[i].low);
             }
             
             document.getElementById('marketHigh').textContent = high24h.toFixed(2);
             document.getElementById('marketLow').textContent = low24h.toFixed(2);
+        }
+
+        function updateCountdown() {
+            if (candles.length === 0) return;
+            
+            const now = Math.floor(Date.now() / 1000);
+            const lastCandleEpoch = candles[candles.length - 1].epoch; // Get the latest candle
+            const nextCandleTime = lastCandleEpoch + activeTimeframe;
+            const remaining = Math.max(0, nextCandleTime - now);
+            
+            const countdownElement = document.getElementById('candleCountdownValue');
+            countdownElement.textContent = `${remaining}s`;
+            
+            // Color coding based on time remaining
+            if (remaining < 3) {
+                countdownElement.style.color = '#ef4444'; // Red for last 3 seconds
+            } else if (remaining < 10) {
+                countdownElement.style.color = '#f59e0b'; // Orange for last 10 seconds
+            } else {
+                countdownElement.style.color = '#3b82f6'; // Blue for normal
+            }
         }
 
         // ======================
@@ -2850,16 +2814,6 @@
             const macdValues = calculateMACDValues();
             if (macdValues.length === 0) return;
             
-            // Find min and max for scaling
-            let min = Infinity;
-            let max = -Infinity;
-            macdValues.forEach(value => {
-                min = Math.min(min, value);
-                max = Math.max(max, value);
-            });
-            
-            const range = Math.max(Math.abs(min), Math.abs(max)) || 1;
-            
             // Draw MACD line
             macdCtx.strokeStyle = '#3b82f6';
             macdCtx.lineWidth = 1.5;
@@ -2867,7 +2821,7 @@
             
             macdValues.forEach((value, index) => {
                 const x = (index * canvas.width) / Math.max(1, macdValues.length - 1);
-                const y = canvas.height / 2 - (value * canvas.height / 2 / range);
+                const y = canvas.height / 2 - (value * 10); // Scale for visibility
                 
                 if (index === 0) {
                     macdCtx.moveTo(x, y);
@@ -2893,59 +2847,57 @@
             const values = [];
             const fastPeriod = 12;
             const slowPeriod = 26;
+            const signalPeriod = 9;
             
-            if (candles.length < slowPeriod) return values;
-            
-            for (let i = slowPeriod - 1; i < candles.length; i++) {
-                // Calculate fast EMA (12-period)
-                let fastEMA = 0;
-                let fastSum = 0;
-                for (let j = 0; j < fastPeriod; j++) {
-                    const idx = i - j;
-                    if (idx < 0) break;
-                    fastSum += candles[idx].close;
+            for (let i = 0; i < candles.length; i++) {
+                if (i >= slowPeriod - 1) {
+                    // Calculate fast EMA (12-period)
+                    let fastEMA = 0;
+                    let slowEMA = 0;
+                    
+                    // Simple EMA calculation
+                    for (let j = 0; j < fastPeriod; j++) {
+                        if (i - j >= 0) {
+                            fastEMA += candles[i - j].close;
+                        }
+                    }
+                    fastEMA /= Math.min(fastPeriod, i + 1);
+                    
+                    // Calculate slow EMA (26-period)
+                    for (let j = 0; j < slowPeriod; j++) {
+                        if (i - j >= 0) {
+                            slowEMA += candles[i - j].close;
+                        }
+                    }
+                    slowEMA /= Math.min(slowPeriod, i + 1);
+                    
+                    // MACD line
+                    const macdLine = fastEMA - slowEMA;
+                    values.push(macdLine);
                 }
-                fastEMA = fastSum / Math.min(fastPeriod, i + 1);
-                
-                // Calculate slow EMA (26-period)
-                let slowEMA = 0;
-                let slowSum = 0;
-                for (let j = 0; j < slowPeriod; j++) {
-                    const idx = i - j;
-                    if (idx < 0) break;
-                    slowSum += candles[idx].close;
-                }
-                slowEMA = slowSum / Math.min(slowPeriod, i + 1);
-                
-                // MACD line
-                const macdLine = fastEMA - slowEMA;
-                values.push(macdLine);
             }
             
             return values;
         }
 
         function drawCCI() {
-            if (!showCCI || !cciCtx || cciValues.length === 0) return;
+            if (!showCCI || !cciCtx || candles.length === 0) return;
             
             const canvas = document.getElementById('cciCanvas');
             cciCtx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Find min and max for scaling
-            let min = -200;
-            let max = 200;
+            // Simple CCI visualization
+            const cciValues = calculateCCIValues();
+            if (cciValues.length === 0) return;
             
             // Draw CCI line
             cciCtx.strokeStyle = '#ec4899';
             cciCtx.lineWidth = 1.5;
             cciCtx.beginPath();
             
-            const visibleCCI = cciValues.slice(-MAX_VISIBLE_CANDLES);
-            
-            visibleCCI.forEach((cciData, index) => {
-                const value = cciData.value;
-                const x = (index * canvas.width) / Math.max(1, visibleCCI.length - 1);
-                const y = canvas.height / 2 - (value * canvas.height / 2 / 200);
+            cciValues.forEach((value, index) => {
+                const x = (index * canvas.width) / Math.max(1, cciValues.length - 1);
+                const y = canvas.height / 2 - (value / 10); // Scale for visibility
                 
                 if (index === 0) {
                     cciCtx.moveTo(x, y);
@@ -2960,16 +2912,16 @@
             cciCtx.strokeStyle = document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af';
             cciCtx.setLineDash([2, 2]);
             
-            // +100 line (overbought)
+            // +100 line
             cciCtx.beginPath();
-            cciCtx.moveTo(0, canvas.height / 4);
-            cciCtx.lineTo(canvas.width, canvas.height / 4);
+            cciCtx.moveTo(0, canvas.height / 2 - 10);
+            cciCtx.lineTo(canvas.width, canvas.height / 2 - 10);
             cciCtx.stroke();
             
-            // -100 line (oversold)
+            // -100 line
             cciCtx.beginPath();
-            cciCtx.moveTo(0, canvas.height * 3 / 4);
-            cciCtx.lineTo(canvas.width, canvas.height * 3 / 4);
+            cciCtx.moveTo(0, canvas.height / 2 + 10);
+            cciCtx.lineTo(canvas.width, canvas.height / 2 + 10);
             cciCtx.stroke();
             
             cciCtx.setLineDash([]);
@@ -2982,6 +2934,44 @@
             cciCtx.lineTo(canvas.width, canvas.height / 2);
             cciCtx.stroke();
             cciCtx.setLineDash([]);
+        }
+
+        function calculateCCIValues() {
+            // Simplified CCI calculation
+            const values = [];
+            const period = 20;
+            
+            for (let i = 0; i < candles.length; i++) {
+                if (i >= period - 1) {
+                    let tpSum = 0;
+                    let tpValues = [];
+                    
+                    // Calculate typical price for last 'period' candles
+                    for (let j = 0; j < period; j++) {
+                        if (i - j >= 0) {
+                            const tp = (candles[i - j].high + candles[i - j].low + candles[i - j].close) / 3;
+                            tpSum += tp;
+                            tpValues.push(tp);
+                        }
+                    }
+                    
+                    const tpMA = tpSum / period;
+                    
+                    // Calculate mean deviation
+                    let meanDev = 0;
+                    tpValues.forEach(tp => {
+                        meanDev += Math.abs(tp - tpMA);
+                    });
+                    meanDev /= period;
+                    
+                    // Calculate CCI
+                    const currentTP = (candles[i].high + candles[i].low + candles[i].close) / 3;
+                    const cci = meanDev !== 0 ? (currentTP - tpMA) / (0.015 * meanDev) : 0;
+                    values.push(cci);
+                }
+            }
+            
+            return values;
         }
 
         // ======================
