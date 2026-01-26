@@ -792,7 +792,6 @@
 
         // Subscription tracking
         let currentTickSubscription = null;
-        let currentCandleSubscription = null;
 
         // ======================
         // THEME MANAGEMENT
@@ -827,10 +826,10 @@
             if (tradingViewWidget) {
                 const theme = document.body.classList.contains('light-mode') ? 'light' : 'dark';
                 tradingViewWidget.applyOverrides({
-                    'paneProperties.background': document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b',
-                    'paneProperties.vertGridProperties.color': document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
-                    'paneProperties.horzGridProperties.color': document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
-                    'scalesProperties.textColor': document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af',
+                    "paneProperties.background": document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b',
+                    "paneProperties.vertGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
+                    "paneProperties.horzGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
+                    "scalesProperties.textColor": document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af',
                 });
             }
         }
@@ -840,21 +839,32 @@
         // ======================
         function init() {
             initTheme();
-            // Wait for TradingView library to load
-            if (typeof TradingView === 'undefined') {
-                console.log('Waiting for TradingView library to load...');
-                setTimeout(init, 100);
-                return;
-            }
-            initTradingViewWidget();
             connectToDeriv();
             
             updateSymbolUI();
             updateLastUpdate();
+            
+            // Initialize TradingView widget after a delay to ensure DOM is ready
+            setTimeout(initTradingViewWidget, 500);
         }
 
         function initTradingViewWidget() {
             console.log('Initializing TradingView widget...');
+            
+            // Check if the container exists
+            const container = document.getElementById('tradingview_chart');
+            if (!container) {
+                console.error('TradingView container not found!');
+                setTimeout(initTradingViewWidget, 100);
+                return;
+            }
+            
+            // Check if TradingView is loaded
+            if (typeof TradingView === 'undefined') {
+                console.log('TradingView library not loaded yet, retrying...');
+                setTimeout(initTradingViewWidget, 100);
+                return;
+            }
             
             const widgetOptions = {
                 symbol: activeSymbol,
@@ -891,6 +901,8 @@
                 });
             } catch (error) {
                 console.error('Error initializing TradingView widget:', error);
+                // Retry after a delay if there's an error
+                setTimeout(initTradingViewWidget, 1000);
             }
         }
 
@@ -1081,7 +1093,6 @@
                     updateConnectionStatus('Disconnected', '#ef4444');
                     isConnected = false;
                     currentTickSubscription = null;
-                    currentCandleSubscription = null;
                     
                     setTimeout(connectToDeriv, 5000);
                 };
