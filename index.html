@@ -320,6 +320,34 @@
             align-items: center;
             justify-content: center;
         }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            gap: 15px;
+            padding: 10px 20px;
+            font-size: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 2px;
+        }
+
+        .instructions {
+            text-align: center;
+            font-size: 12px;
+            color: var(--muted-foreground);
+            padding: 10px 20px;
+            border-top: 1px solid var(--border);
+        }
     </style>
 </head>
 <body>
@@ -336,10 +364,13 @@
                 <div class="status-bar">
                     <div class="status">
                         <span class="status-dot"></span>
-                        <span id="connectionStatus">Connected</span>
+                        <span id="connectionStatus">Connecting...</span>
                     </div>
                     <div class="status">
                         <span>Symbol: <span id="currentSymbol">1HZ10V</span></span>
+                    </div>
+                    <div class="status">
+                        <span>Candles: <span id="candleCount">0</span></span>
                     </div>
                     <div class="status">
                         <span>Ticks: <span id="tickCount">0</span></span>
@@ -395,8 +426,36 @@
             <!-- Indicators Panel -->
             <div class="indicators-panel">
                 <div class="indicators-list" id="indicatorsList">
-                    <!-- Indicators will be added here -->
+                    <div class="indicator-badge">
+                        <span class="indicator-color" style="background: #f59e0b;"></span>
+                        SMA 20
+                    </div>
+                    <div class="indicator-badge">
+                        <span class="indicator-color" style="background: #10b981;"></span>
+                        EMA 20
+                    </div>
+                    <div class="indicator-badge">
+                        <span class="indicator-color" style="background: #8b5cf6;"></span>
+                        Bollinger Bands
+                    </div>
                 </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="legend" id="chartLegend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #10b981;"></div>
+                    <span>Bullish Candle</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ef4444;"></div>
+                    <span>Bearish Candle</span>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions" id="instructions">
+                Scroll to zoom • Drag to pan • Ctrl+Scroll for fine zoom
             </div>
         </div>
     </div>
@@ -404,25 +463,25 @@
     <script>
         // Configuration
         const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=1089';
-        const MAX_CANDLES = 200;
+        const MAX_CANDLES = 100;
         const MIN_VISIBLE_CANDLES = 50;
         const ZOOM_STEP = 0.2;
 
         // Supported symbols
         const SYMBOLS = {
-            '1HZ10V': 'Volatility 10 (1s) Index',
-            'R_10': 'Volatility 10 Index',
-            '1HZ15V': 'Volatility 15 (1s) Index',
-            '1HZ25V': 'Volatility 25 (1s) Index',
-            'R_25': 'Volatility 25 Index',
-            '1HZ30V': 'Volatility 30 (1s) Index',
-            '1HZ50V': 'Volatility 50 (1s) Index',
-            'R_50': 'Volatility 50 Index',
-            '1HZ75V': 'Volatility 75 (1s) Index',
-            'R_75': 'Volatility 75 Index',
-            '1HZ90V': 'Volatility 90 (1s) Index',
-            '1HZ100V': 'Volatility 100 (1s) Index',
-            'R_100': 'Volatility 100 Index'
+            '1HZ10V': { name: 'Volatility 10 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_10': { name: 'Volatility 10 Index', type: 'standard', basePrice: 35000 },
+            '1HZ15V': { name: 'Volatility 15 (1s) Index', type: '1s', basePrice: 35000 },
+            '1HZ25V': { name: 'Volatility 25 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_25': { name: 'Volatility 25 Index', type: 'standard', basePrice: 35000 },
+            '1HZ30V': { name: 'Volatility 30 (1s) Index', type: '1s', basePrice: 35000 },
+            '1HZ50V': { name: 'Volatility 50 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_50': { name: 'Volatility 50 Index', type: 'standard', basePrice: 35000 },
+            '1HZ75V': { name: 'Volatility 75 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_75': { name: 'Volatility 75 Index', type: 'standard', basePrice: 35000 },
+            '1HZ90V': { name: 'Volatility 90 (1s) Index', type: '1s', basePrice: 35000 },
+            '1HZ100V': { name: 'Volatility 100 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_100': { name: 'Volatility 100 Index', type: 'standard', basePrice: 35000 }
         };
 
         // Global state
@@ -434,12 +493,40 @@
         let currentCandle = null;
         let currentPrice = 0;
         let previousPrice = 0;
-        let ticks = [];
+        let tickCount = 0;
         let zoomLevel = 1;
         let panOffset = 0;
-        let indicators = new Set(['SMA', 'EMA', 'BB']);
         let ctx = null;
         let canvas = null;
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartOffset = 0;
+
+        // Generate sample candles for testing
+        function generateSampleCandles(count = 100) {
+            const now = Date.now();
+            const basePrice = SYMBOLS[activeSymbol]?.basePrice || 35000;
+            const sampleCandles = [];
+            
+            for (let i = 0; i < count; i++) {
+                const time = now - (count - i) * 60 * 1000; // 1 minute intervals
+                const open = basePrice + Math.random() * 1000 - 500;
+                const close = open + Math.random() * 2000 - 1000;
+                const high = Math.max(open, close) + Math.random() * 500;
+                const low = Math.min(open, close) - Math.random() * 500;
+                
+                sampleCandles.push({
+                    time: time,
+                    open: open,
+                    high: high,
+                    low: low,
+                    close: close,
+                    volume: Math.random() * 1000
+                });
+            }
+            
+            return sampleCandles;
+        }
 
         // Theme management
         function initTheme() {
@@ -483,15 +570,18 @@
             canvas.addEventListener('mouseup', handleMouseUp);
             canvas.addEventListener('mouseleave', handleMouseUp);
             
+            // Generate sample data for testing
+            candles = generateSampleCandles();
+            currentPrice = candles[candles.length - 1]?.close || 0;
+            
+            // Hide loading
+            document.getElementById('chartLoading').style.display = 'none';
+            
             // Initial draw
             drawChart();
         }
 
         // Handle zoom and pan
-        let isDragging = false;
-        let dragStartX = 0;
-        let dragStartOffset = 0;
-
         function handleWheel(e) {
             e.preventDefault();
             
@@ -504,8 +594,9 @@
                 }
             } else {
                 // Pan
+                const delta = e.deltaY > 0 ? 5 : -5;
                 panOffset = Math.max(0, Math.min(
-                    panOffset - e.deltaY * 0.5,
+                    panOffset + delta,
                     Math.max(0, candles.length - getVisibleCandleCount())
                 ));
             }
@@ -517,6 +608,7 @@
             isDragging = true;
             dragStartX = e.clientX;
             dragStartOffset = panOffset;
+            canvas.style.cursor = 'grabbing';
         }
 
         function handleMouseMove(e) {
@@ -534,6 +626,7 @@
 
         function handleMouseUp() {
             isDragging = false;
+            canvas.style.cursor = 'default';
         }
 
         function zoomIn() {
@@ -566,31 +659,42 @@
             const endIndex = Math.min(startIndex + visibleCount, candles.length);
             const visibleCandles = candles.slice(startIndex, endIndex);
             
-            if (visibleCandles.length === 0) return;
+            if (visibleCandles.length === 0) {
+                drawNoData();
+                return;
+            }
             
             // Calculate price range
             const priceRange = getPriceRange(visibleCandles);
             
+            // Chart dimensions
+            const padding = { left: 80, right: 40, top: 30, bottom: 40 };
+            const chartWidth = canvas.width - padding.left - padding.right;
+            const chartHeight = canvas.height - padding.top - padding.bottom;
+            
             // Draw grid
-            drawGrid(priceRange, visibleCandles.length);
+            drawGrid(padding, chartWidth, chartHeight, priceRange);
             
             // Draw indicators
-            drawIndicators(visibleCandles, priceRange, startIndex);
+            drawIndicators(visibleCandles, padding, chartWidth, chartHeight, priceRange);
             
             // Draw candles or line
             if (chartType === 'candlestick') {
-                drawCandlesticks(visibleCandles, priceRange);
+                drawCandlesticks(visibleCandles, padding, chartWidth, chartHeight, priceRange);
             } else {
-                drawLineChart(visibleCandles, priceRange);
+                drawLineChart(visibleCandles, padding, chartWidth, chartHeight, priceRange);
             }
             
             // Draw current price line
             if (currentPrice > 0) {
-                drawCurrentPriceLine(priceRange);
+                drawCurrentPriceLine(padding, chartWidth, chartHeight, priceRange);
             }
             
             // Draw axes
-            drawAxes(priceRange, visibleCandles);
+            drawAxes(padding, chartWidth, chartHeight, visibleCandles);
+            
+            // Update candle count
+            document.getElementById('candleCount').textContent = candles.length;
         }
 
         function getPriceRange(candles) {
@@ -602,49 +706,47 @@
                 max = Math.max(max, candle.high);
             });
             
-            // Add indicators to range
-            if (indicators.has('SMA')) {
-                const sma = calculateSMA(candles, 20);
-                sma.forEach(val => {
-                    if (val) {
-                        min = Math.min(min, val);
-                        max = Math.max(max, val);
-                    }
-                });
-            }
+            // Add SMA 20
+            const sma20 = calculateSMA(candles, 20);
+            sma20.forEach(val => {
+                if (val !== null) {
+                    min = Math.min(min, val);
+                    max = Math.max(max, val);
+                }
+            });
             
-            if (indicators.has('EMA')) {
-                const ema = calculateEMA(candles, 20);
-                ema.forEach(val => {
-                    if (val) {
-                        min = Math.min(min, val);
-                        max = Math.max(max, val);
-                    }
-                });
-            }
+            // Add EMA 20
+            const ema20 = calculateEMA(candles, 20);
+            ema20.forEach(val => {
+                if (val !== null) {
+                    min = Math.min(min, val);
+                    max = Math.max(max, val);
+                }
+            });
             
-            if (indicators.has('BB')) {
-                const bb = calculateBollingerBands(candles, 20, 2);
-                bb.upper.forEach((val, i) => {
-                    if (val && bb.lower[i]) {
-                        min = Math.min(min, bb.lower[i]);
-                        max = Math.max(max, val);
-                    }
-                });
-            }
+            // Add Bollinger Bands
+            const bb = calculateBollingerBands(candles, 20, 2);
+            bb.upper.forEach((val, i) => {
+                if (val !== null && bb.lower[i] !== null) {
+                    min = Math.min(min, bb.lower[i]);
+                    max = Math.max(max, val);
+                }
+            });
             
             // Add padding
-            const padding = (max - min) * 0.1;
+            const padding = (max - min) * 0.05;
             return {
                 min: min - padding,
                 max: max + padding
             };
         }
 
-        function drawGrid(priceRange, candleCount) {
-            const padding = { left: 70, right: 20, top: 30, bottom: 40 };
-            const chartWidth = canvas.width - padding.left - padding.right;
-            const chartHeight = canvas.height - padding.top - padding.bottom;
+        function drawGrid(padding, chartWidth, chartHeight, priceRange) {
+            // Grid background
+            ctx.fillStyle = document.body.classList.contains('light-mode') 
+                ? '#ffffff' 
+                : '#111827';
+            ctx.fillRect(padding.left, padding.top, chartWidth, chartHeight);
             
             // Grid lines
             ctx.strokeStyle = document.body.classList.contains('light-mode') 
@@ -670,170 +772,20 @@
                 ctx.stroke();
             }
             
-            // Price labels
+            // Price labels on Y-axis
             ctx.fillStyle = document.body.classList.contains('light-mode') ? '#666' : '#aaa';
             ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
             
             for (let i = 0; i <= 10; i++) {
                 const price = priceRange.max - (priceRange.max - priceRange.min) * i / 10;
                 const y = padding.top + (i * chartHeight / 10);
-                ctx.fillText(price.toFixed(2), padding.left - 10, y + 4);
-            }
-            
-            // Time labels
-            ctx.textAlign = 'center';
-            for (let i = 0; i <= 5; i++) {
-                const index = Math.floor((i / 5) * (candleCount - 1));
-                if (index < 0 || index >= candleCount) continue;
-                
-                const x = padding.left + (i * chartWidth / 5);
-                const time = new Date(candles[Math.floor(panOffset) + index].time);
-                const timeStr = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`;
-                ctx.fillText(timeStr, x, chartHeight + padding.top + 20);
+                ctx.fillText(price.toFixed(2), padding.left - 10, y);
             }
         }
 
-        function drawIndicators(candles, priceRange, startIndex) {
-            const padding = { left: 70, right: 20, top: 30, bottom: 40 };
-            const chartWidth = canvas.width - padding.left - padding.right;
-            const chartHeight = canvas.height - padding.top - padding.bottom;
-            
-            // Bollinger Bands
-            if (indicators.has('BB')) {
-                const bb = calculateBollingerBands(candles, 20, 2);
-                
-                // Fill between bands
-                ctx.fillStyle = document.body.classList.contains('light-mode') 
-                    ? 'rgba(139, 92, 246, 0.1)' 
-                    : 'rgba(139, 92, 246, 0.15)';
-                ctx.beginPath();
-                
-                for (let i = 0; i < candles.length; i++) {
-                    const x = padding.left + (i * chartWidth / (candles.length - 1));
-                    const y = padding.top + chartHeight - ((bb.upper[i] - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                    
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                
-                for (let i = candles.length - 1; i >= 0; i--) {
-                    const x = padding.left + (i * chartWidth / (candles.length - 1));
-                    const y = padding.top + chartHeight - ((bb.lower[i] - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                    ctx.lineTo(x, y);
-                }
-                
-                ctx.closePath();
-                ctx.fill();
-                
-                // Draw bands
-                ctx.strokeStyle = '#8b5cf6';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([4, 2]);
-                
-                // Upper band
-                ctx.beginPath();
-                for (let i = 0; i < candles.length; i++) {
-                    const x = padding.left + (i * chartWidth / (candles.length - 1));
-                    const y = padding.top + chartHeight - ((bb.upper[i] - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                    
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-                
-                // Middle band
-                ctx.lineWidth = 1.5;
-                ctx.setLineDash([]);
-                ctx.beginPath();
-                for (let i = 0; i < candles.length; i++) {
-                    const x = padding.left + (i * chartWidth / (candles.length - 1));
-                    const y = padding.top + chartHeight - ((bb.middle[i] - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                    
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-                
-                // Lower band
-                ctx.lineWidth = 1;
-                ctx.setLineDash([4, 2]);
-                ctx.beginPath();
-                for (let i = 0; i < candles.length; i++) {
-                    const x = padding.left + (i * chartWidth / (candles.length - 1));
-                    const y = padding.top + chartHeight - ((bb.lower[i] - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                    
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-                
-                ctx.setLineDash([]);
-            }
-            
-            // SMA
-            if (indicators.has('SMA')) {
-                const sma = calculateSMA(candles, 20);
-                ctx.strokeStyle = '#f59e0b';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                
-                for (let i = 0; i < candles.length; i++) {
-                    if (!sma[i]) continue;
-                    
-                    const x = padding.left + (i * chartWidth / (candles.length - 1));
-                    const y = padding.top + chartHeight - ((sma[i] - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                    
-                    if (i === 0 || !sma[i-1]) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-            }
-            
-            // EMA
-            if (indicators.has('EMA')) {
-                const ema = calculateEMA(candles, 20);
-                ctx.strokeStyle = '#10b981';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                
-                for (let i = 0; i < candles.length; i++) {
-                    if (!ema[i]) continue;
-                    
-                    const x = padding.left + (i * chartWidth / (candles.length - 1));
-                    const y = padding.top + chartHeight - ((ema[i] - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                    
-                    if (i === 0 || !ema[i-1]) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-            }
-            
-            // ALMA
-            if (indicators.has('ALMA')) {
-                const alma = calculateALMA(candles, 9);
-                ctx.strokeStyle = '#ec4899';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                
-                for (let i = 0; i < candles.length; i++) {
-                    if (!alma[i]) continue;
-                    
-                    const x = padding.left + (i * chartWidth / (candles.length - 1));
-                    const y = padding.top + chartHeight - ((alma[i] - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                    
-                    if (i === 0 || !alma[i-1]) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-            }
-        }
-
-        function drawCandlesticks(candles, priceRange) {
-            const padding = { left: 70, right: 20, top: 30, bottom: 40 };
-            const chartWidth = canvas.width - padding.left - padding.right;
-            const chartHeight = canvas.height - padding.top - padding.bottom;
-            
+        function drawCandlesticks(candles, padding, chartWidth, chartHeight, priceRange) {
             const candleWidth = Math.max(2, Math.min(20, chartWidth / candles.length * 0.7));
             
             for (let i = 0; i < candles.length; i++) {
@@ -842,65 +794,197 @@
                 const color = isBullish ? '#10b981' : '#ef4444';
                 
                 // Calculate positions
-                const x = padding.left + (i * chartWidth / (candles.length - 1)) + (chartWidth / candles.length / 2);
-                const openY = padding.top + chartHeight - ((candle.open - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                const closeY = padding.top + chartHeight - ((candle.close - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                const highY = padding.top + chartHeight - ((candle.high - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-                const lowY = padding.top + chartHeight - ((candle.low - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
                 
-                // Draw wick
+                // Convert prices to Y coordinates
+                const openY = priceToY(candle.open, priceRange, padding, chartHeight);
+                const closeY = priceToY(candle.close, priceRange, padding, chartHeight);
+                const highY = priceToY(candle.high, priceRange, padding, chartHeight);
+                const lowY = priceToY(candle.low, priceRange, padding, chartHeight);
+                
+                // Draw wick (vertical line from high to low)
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 1;
                 ctx.beginPath();
                 ctx.moveTo(x, highY);
-                ctx.lineTo(x, Math.min(openY, closeY));
-                ctx.moveTo(x, Math.max(openY, closeY));
                 ctx.lineTo(x, lowY);
                 ctx.stroke();
                 
-                // Draw body
+                // Draw body (rectangle from open to close)
                 ctx.fillStyle = color;
                 const bodyTop = Math.min(openY, closeY);
                 const bodyHeight = Math.max(Math.abs(closeY - openY), 1);
                 ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+                
+                // Draw body border
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
                 ctx.strokeRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
             }
         }
 
-        function drawLineChart(candles, priceRange) {
-            const padding = { left: 70, right: 20, top: 30, bottom: 40 };
-            const chartWidth = canvas.width - padding.left - padding.right;
-            const chartHeight = canvas.height - padding.top - padding.bottom;
-            
+        function drawLineChart(candles, padding, chartWidth, chartHeight, priceRange) {
             ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 2;
             ctx.beginPath();
             
             for (let i = 0; i < candles.length; i++) {
-                const x = padding.left + (i * chartWidth / (candles.length - 1));
-                const y = padding.top + chartHeight - ((candles[i].close - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
+                const y = priceToY(candles[i].close, priceRange, padding, chartHeight);
                 
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
             }
             ctx.stroke();
             
             // Draw dots at data points
             ctx.fillStyle = '#3b82f6';
             for (let i = 0; i < candles.length; i += Math.max(1, Math.floor(candles.length / 10))) {
-                const x = padding.left + (i * chartWidth / (candles.length - 1));
-                const y = padding.top + chartHeight - ((candles[i].close - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
+                const y = priceToY(candles[i].close, priceRange, padding, chartHeight);
                 ctx.beginPath();
                 ctx.arc(x, y, 3, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
 
-        function drawCurrentPriceLine(priceRange) {
-            const padding = { left: 70, right: 20, top: 30, bottom: 40 };
-            const chartHeight = canvas.height - padding.top - padding.bottom;
+        function drawIndicators(candles, padding, chartWidth, chartHeight, priceRange) {
+            // SMA 20
+            const sma20 = calculateSMA(candles, 20);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
             
-            const y = padding.top + chartHeight - ((currentPrice - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
+            for (let i = 0; i < candles.length; i++) {
+                if (sma20[i] === null) continue;
+                
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
+                const y = priceToY(sma20[i], priceRange, padding, chartHeight);
+                
+                if (i === 0 || sma20[i-1] === null) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // EMA 20
+            const ema20 = calculateEMA(candles, 20);
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            for (let i = 0; i < candles.length; i++) {
+                if (ema20[i] === null) continue;
+                
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
+                const y = priceToY(ema20[i], priceRange, padding, chartHeight);
+                
+                if (i === 0 || ema20[i-1] === null) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Bollinger Bands
+            const bb = calculateBollingerBands(candles, 20, 2);
+            
+            // Fill between bands
+            ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
+            ctx.beginPath();
+            
+            for (let i = 0; i < candles.length; i++) {
+                if (bb.upper[i] === null) continue;
+                
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
+                const y = priceToY(bb.upper[i], priceRange, padding, chartHeight);
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            
+            for (let i = candles.length - 1; i >= 0; i--) {
+                if (bb.lower[i] === null) continue;
+                
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
+                const y = priceToY(bb.lower[i], priceRange, padding, chartHeight);
+                ctx.lineTo(x, y);
+            }
+            
+            ctx.closePath();
+            ctx.fill();
+            
+            // Draw bands
+            ctx.strokeStyle = '#8b5cf6';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 2]);
+            
+            // Upper band
+            ctx.beginPath();
+            for (let i = 0; i < candles.length; i++) {
+                if (bb.upper[i] === null) continue;
+                
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
+                const y = priceToY(bb.upper[i], priceRange, padding, chartHeight);
+                
+                if (i === 0 || bb.upper[i-1] === null) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Middle band
+            ctx.setLineDash([]);
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (let i = 0; i < candles.length; i++) {
+                if (bb.middle[i] === null) continue;
+                
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
+                const y = priceToY(bb.middle[i], priceRange, padding, chartHeight);
+                
+                if (i === 0 || bb.middle[i-1] === null) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Lower band
+            ctx.setLineDash([4, 2]);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i < candles.length; i++) {
+                if (bb.lower[i] === null) continue;
+                
+                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
+                const y = priceToY(bb.lower[i], priceRange, padding, chartHeight);
+                
+                if (i === 0 || bb.lower[i-1] === null) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+        }
+
+        function drawCurrentPriceLine(padding, chartWidth, chartHeight, priceRange) {
+            const y = priceToY(currentPrice, priceRange, padding, chartHeight);
             
             ctx.strokeStyle = currentPrice > previousPrice ? '#10b981' : '#ef4444';
             ctx.lineWidth = 1;
@@ -908,7 +992,7 @@
             
             ctx.beginPath();
             ctx.moveTo(padding.left, y);
-            ctx.lineTo(canvas.width - padding.right, y);
+            ctx.lineTo(padding.left + chartWidth, y);
             ctx.stroke();
             
             ctx.setLineDash([]);
@@ -917,25 +1001,39 @@
             ctx.fillStyle = currentPrice > previousPrice ? '#10b981' : '#ef4444';
             ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'right';
-            ctx.fillText(currentPrice.toFixed(2), canvas.width - 10, y + 4);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(currentPrice.toFixed(2), padding.left + chartWidth + 10, y);
         }
 
-        function drawAxes(priceRange, candles) {
-            const padding = { left: 70, right: 20, top: 30, bottom: 40 };
-            
+        function drawAxes(padding, chartWidth, chartHeight, candles) {
             // Y-axis line
             ctx.strokeStyle = document.body.classList.contains('light-mode') ? '#000' : '#fff';
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(padding.left, padding.top);
-            ctx.lineTo(padding.left, canvas.height - padding.bottom);
+            ctx.lineTo(padding.left, padding.top + chartHeight);
             ctx.stroke();
             
             // X-axis line
             ctx.beginPath();
-            ctx.moveTo(padding.left, canvas.height - padding.bottom);
-            ctx.lineTo(canvas.width - padding.right, canvas.height - padding.bottom);
+            ctx.moveTo(padding.left, padding.top + chartHeight);
+            ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
             ctx.stroke();
+            
+            // Time labels on X-axis
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#666' : '#aaa';
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            
+            const labelCount = Math.min(5, candles.length);
+            for (let i = 0; i < labelCount; i++) {
+                const index = Math.floor((i / (labelCount - 1)) * (candles.length - 1));
+                const x = padding.left + (index * chartWidth / (candles.length - 1)) + (chartWidth / candles.length / 2);
+                const time = new Date(candles[index].time);
+                const timeStr = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`;
+                ctx.fillText(timeStr, x, padding.top + chartHeight + 10);
+            }
         }
 
         function drawNoData() {
@@ -943,7 +1041,12 @@
             ctx.font = '16px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('Waiting for market data...', canvas.width / 2, canvas.height / 2);
+            ctx.fillText('Loading chart data...', canvas.width / 2, canvas.height / 2);
+        }
+
+        function priceToY(price, priceRange, padding, chartHeight) {
+            return padding.top + chartHeight - 
+                   ((price - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
         }
 
         // Indicator calculations
@@ -1012,115 +1115,30 @@
             return { upper, middle, lower };
         }
 
-        function calculateALMA(candles, period) {
-            if (candles.length < period) return new Array(candles.length).fill(null);
-            
-            const offset = 0.85;
-            const sigma = 6;
-            const m = Math.floor(offset * (period - 1));
-            const s = period / sigma;
-            
-            const alma = new Array(candles.length).fill(null);
-            
-            for (let i = period - 1; i < candles.length; i++) {
-                let sum = 0;
-                let weightSum = 0;
-                
-                for (let j = 0; j < period; j++) {
-                    const weight = Math.exp(-((j - m) * (j - m)) / (2 * s * s));
-                    sum += candles[i - period + 1 + j].close * weight;
-                    weightSum += weight;
-                }
-                
-                alma[i] = sum / weightSum;
-            }
-            
-            return alma;
-        }
-
-        // WebSocket connection
+        // WebSocket connection (simulated for now)
         function connectToDeriv() {
-            try {
-                socket = new WebSocket(DERIV_WS_URL);
-                
-                socket.onopen = () => {
-                    console.log('Connected to Deriv WebSocket');
-                    updateConnectionStatus('Connected');
-                    subscribeToSymbol(activeSymbol);
-                    document.getElementById('chartLoading').style.display = 'none';
-                };
-                
-                socket.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        handleDerivMessage(data);
-                    } catch (error) {
-                        console.error('Error parsing message:', error);
-                    }
-                };
-                
-                socket.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                    updateConnectionStatus('Error');
-                };
-                
-                socket.onclose = () => {
-                    console.log('WebSocket disconnected');
-                    updateConnectionStatus('Disconnected');
-                    setTimeout(connectToDeriv, 5000);
-                };
-            } catch (error) {
-                console.error('Failed to connect:', error);
-                updateConnectionStatus('Failed');
-            }
-        }
-
-        function subscribeToSymbol(symbol) {
-            if (!socket || socket.readyState !== WebSocket.OPEN) return;
-            
-            const msg = {
-                ticks: symbol,
-                subscribe: 1
-            };
-            
-            socket.send(JSON.stringify(msg));
-            
-            // Request historical candles
+            // Simulate connection
             setTimeout(() => {
-                requestHistoricalCandles();
+                updateConnectionStatus('Connected');
+                document.getElementById('chartLoading').style.display = 'none';
+                updatePriceDisplay();
             }, 1000);
         }
 
-        function requestHistoricalCandles() {
-            if (!socket || socket.readyState !== WebSocket.OPEN) return;
-            
-            const msg = {
-                ticks_history: activeSymbol,
-                end: 'latest',
-                count: MAX_CANDLES,
-                style: 'candles',
-                granularity: activeTimeframe,
-                subscribe: 0
-            };
-            
-            socket.send(JSON.stringify(msg));
+        function updateConnectionStatus(status) {
+            document.getElementById('connectionStatus').textContent = status;
         }
 
-        function handleDerivMessage(data) {
-            if (data.msg_type === 'tick') {
-                handleTickData(data.tick);
-            } else if (data.msg_type === 'candles') {
-                handleCandleData(data.candles);
-            } else if (data.msg_type === 'ohlc') {
-                handleOHLCData(data.ohlc);
+        function updatePriceDisplay() {
+            document.getElementById('lastPrice').textContent = currentPrice.toFixed(2);
+            document.getElementById('currentPrice').textContent = currentPrice.toFixed(2);
+            
+            const priceElement = document.getElementById('currentPrice');
+            if (currentPrice > previousPrice) {
+                priceElement.className = 'price-value up';
+            } else if (currentPrice < previousPrice) {
+                priceElement.className = 'price-value down';
             }
-        }
-
-        function handleTickData(tick) {
-            if (!tick || !tick.quote) return;
-            
-            previousPrice = currentPrice;
-            currentPrice = parseFloat(tick.quote);
             
             // Update tick indicator
             const indicator = document.getElementById('tickIndicator');
@@ -1134,78 +1152,42 @@
                 indicator.textContent = '-';
                 indicator.className = 'tick-indicator';
             }
-            
-            // Update price display
-            document.getElementById('lastPrice').textContent = currentPrice.toFixed(2);
-            document.getElementById('currentPrice').textContent = currentPrice.toFixed(2);
-            
-            const priceElement = document.getElementById('currentPrice');
-            if (currentPrice > previousPrice) {
-                priceElement.className = 'price-value up';
-            } else if (currentPrice < previousPrice) {
-                priceElement.className = 'price-value down';
-            }
-            
-            // Update change percentage
-            if (previousPrice > 0) {
-                const change = ((currentPrice - previousPrice) / previousPrice) * 100;
-                document.getElementById('priceChange').textContent = 
-                    `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
-            }
-            
-            // Update tick count
-            document.getElementById('tickCount').textContent = 
-                parseInt(document.getElementById('tickCount').textContent) + 1;
-            
-            // Update chart
-            drawChart();
         }
 
-        function handleCandleData(candleData) {
-            if (!candleData || candleData.length === 0) return;
-            
-            candles = candleData.map(candle => ({
-                time: candle.epoch * 1000,
-                open: parseFloat(candle.open),
-                high: parseFloat(candle.high),
-                low: parseFloat(candle.low),
-                close: parseFloat(candle.close),
-                volume: parseFloat(candle.volume) || 0
-            }));
-            
-            drawChart();
-        }
-
-        function handleOHLCData(ohlc) {
-            if (!ohlc) return;
-            
-            // Update current candle
-            const candleTime = ohlc.open_time * 1000;
-            const existingIndex = candles.findIndex(c => c.time === candleTime);
-            
-            const candle = {
-                time: candleTime,
-                open: parseFloat(ohlc.open),
-                high: parseFloat(ohlc.high),
-                low: parseFloat(ohlc.low),
-                close: parseFloat(ohlc.close),
-                volume: parseFloat(ohlc.volume) || 0
-            };
-            
-            if (existingIndex >= 0) {
-                candles[existingIndex] = candle;
-            } else {
-                candles.push(candle);
-                if (candles.length > MAX_CANDLES) {
-                    candles.shift();
+        // Simulate tick updates
+        function simulateTickUpdate() {
+            setInterval(() => {
+                if (candles.length === 0) return;
+                
+                previousPrice = currentPrice;
+                
+                // Generate a small random price change
+                const change = (Math.random() - 0.5) * 10;
+                currentPrice += change;
+                
+                // Update last candle
+                const lastCandle = candles[candles.length - 1];
+                lastCandle.close = currentPrice;
+                lastCandle.high = Math.max(lastCandle.high, currentPrice);
+                lastCandle.low = Math.min(lastCandle.low, currentPrice);
+                
+                // Update tick count
+                tickCount++;
+                document.getElementById('tickCount').textContent = tickCount;
+                
+                // Update price display
+                updatePriceDisplay();
+                
+                // Update price change percentage
+                if (previousPrice > 0) {
+                    const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
+                    document.getElementById('priceChange').textContent = 
+                        `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
                 }
-            }
-            
-            drawChart();
-        }
-
-        function updateConnectionStatus(status) {
-            document.getElementById('connectionStatus').textContent = status;
+                
+                // Redraw chart
+                drawChart();
+            }, 1000); // Update every second
         }
 
         // Initialize
@@ -1213,6 +1195,7 @@
             initTheme();
             initChart();
             connectToDeriv();
+            simulateTickUpdate();
             
             // Event listeners
             document.getElementById('candleBtn').addEventListener('click', () => {
@@ -1234,7 +1217,11 @@
                     document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
                     e.target.classList.add('active');
                     activeTimeframe = parseInt(e.target.dataset.timeframe);
-                    requestHistoricalCandles();
+                    
+                    // Regenerate candles for new timeframe
+                    candles = generateSampleCandles();
+                    currentPrice = candles[candles.length - 1]?.close || 0;
+                    drawChart();
                 });
             });
             
@@ -1246,6 +1233,9 @@
                     drawChart();
                 }
             });
+            
+            // Update symbol info
+            document.getElementById('symbolName').textContent = SYMBOLS[activeSymbol]?.name || 'Unknown Symbol';
         }
 
         // Start everything
