@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tradingview Implementation for Deriv</title>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
-    <!-- Load TradingView widget library -->
+    <!-- TradingView Widget Library -->
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <style>
         :root {
@@ -211,38 +211,6 @@
             border: 1px solid var(--border);
         }
 
-        .chart-canvas-container {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            cursor: crosshair;
-            user-select: none;
-        }
-
-        .chart-canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        .current-price-line {
-            position: absolute;
-            border-top: 1px dashed var(--primary);
-            width: 100%;
-            pointer-events: none;
-        }
-
-        .current-price-label {
-            position: absolute;
-            right: 5px;
-            background: var(--primary);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11px;
-            transform: translateY(-50%);
-        }
-
         /* Tick History */
         .tick-history {
             background: var(--card);
@@ -392,23 +360,6 @@
             color: var(--foreground);
         }
 
-        .countdown {
-            text-align: center;
-            padding: 8px 12px;
-            background: var(--card);
-            border-radius: 8px;
-            margin-top: 10px;
-            border: 1px solid var(--border);
-        }
-
-        .countdown-value {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--primary);
-            margin: 4px 0;
-        }
-
-        /* Instructions */
         .instructions {
             text-align: center;
             font-size: 12px;
@@ -416,58 +367,6 @@
             margin-top: 15px;
             padding-top: 15px;
             border-top: 1px solid var(--border);
-        }
-
-        /* Zoom Controls */
-        .zoom-controls {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            display: flex;
-            gap: 5px;
-            z-index: 10;
-        }
-
-        .zoom-btn {
-            width: 30px;
-            height: 30px;
-            background: var(--card);
-            border: 1px solid var(--border);
-            color: var(--foreground);
-            border-radius: 4px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-        }
-
-        .zoom-btn:hover {
-            background: var(--border);
-        }
-
-        /* Legend */
-        .legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid var(--border);
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-            color: var(--muted-foreground);
-        }
-
-        .legend-color {
-            width: 20px;
-            height: 3px;
-            border-radius: 2px;
         }
 
         /* Tick Detector */
@@ -844,14 +743,15 @@
             updateSymbolUI();
             updateLastUpdate();
             
-            // Initialize TradingView widget after a delay to ensure DOM is ready
-            setTimeout(initTradingViewWidget, 500);
+            // Initialize TradingView widget after everything is ready
+            initTradingViewWidget();
         }
 
+        // Simple TradingView widget initialization
         function initTradingViewWidget() {
             console.log('Initializing TradingView widget...');
             
-            // Check if the container exists
+            // Make sure the container exists
             const container = document.getElementById('tradingview_chart');
             if (!container) {
                 console.error('TradingView container not found!');
@@ -859,206 +759,58 @@
                 return;
             }
             
-            // Check if TradingView is loaded
+            // Wait for TradingView to be available
             if (typeof TradingView === 'undefined') {
-                console.log('TradingView library not loaded yet, retrying...');
+                console.log('Waiting for TradingView library...');
                 setTimeout(initTradingViewWidget, 100);
                 return;
             }
             
-            const widgetOptions = {
-                symbol: activeSymbol,
-                interval: activeTimeframe,
-                container: "tradingview_chart",
-                datafeed: new Datafeed(),
-                library_path: "https://charting-library.tradingview.com/",
-                locale: "en",
-                disabled_features: ["header_symbol_search", "symbol_search_hot_key", "header_compare", "header_settings", "use_localstorage_for_settings"],
-                enabled_features: ["study_templates"],
-                theme: document.body.classList.contains('light-mode') ? 'light' : 'dark',
-                autosize: true,
-                toolbar_bg: document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b',
-                overrides: {
-                    "paneProperties.background": document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b',
-                    "paneProperties.vertGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
-                    "paneProperties.horzGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
-                    "scalesProperties.textColor": document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af',
-                },
-                loading_screen: { backgroundColor: document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b' },
-                fullscreen: false,
-                autosize: true,
-                studies_overrides: {},
-                timezone: "Etc/UTC",
-                debug: false
-            };
-
             try {
-                tradingViewWidget = new TradingView.widget(widgetOptions);
-
-                tradingViewWidget.onChartReady(() => {
-                    console.log('TradingView chart is ready');
-                    updateConnectionStatus('Connected', '#10b981');
+                // Create a simple widget without custom datafeed for now
+                tradingViewWidget = new TradingView.widget({
+                    "width": "100%",
+                    "height": "100%",
+                    "symbol": activeSymbol,
+                    "interval": activeTimeframe,
+                    "timezone": "Etc/UTC",
+                    "theme": document.body.classList.contains('light-mode') ? 'light' : 'dark',
+                    "style": "1",
+                    "locale": "en",
+                    "toolbar_bg": document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b',
+                    "enable_publishing": false,
+                    "allow_symbol_change": true,
+                    "container_id": "tradingview_chart",
+                    "studies": [
+                        "MACD@tv-basicstudies",
+                        "RSI@tv-basicstudies"
+                    ],
+                    "show_popup_button": true,
+                    "popup_width": "1000",
+                    "popup_height": "650",
+                    "overrides": {
+                        "mainSeriesProperties.candleStyle.upColor": "#10b981",
+                        "mainSeriesProperties.candleStyle.downColor": "#ef4444",
+                        "mainSeriesProperties.candleStyle.borderUpColor": "#10b981",
+                        "mainSeriesProperties.candleStyle.borderDownColor": "#ef4444",
+                        "mainSeriesProperties.candleStyle.wickUpColor": "#10b981",
+                        "mainSeriesProperties.candleStyle.wickDownColor": "#ef4444",
+                        "paneProperties.background": document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b',
+                        "paneProperties.vertGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
+                        "paneProperties.horzGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
+                        "scalesProperties.textColor": document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af',
+                    },
+                    "disabled_features": ["header_symbol_search", "symbol_search_hot_key", "header_compare", "header_settings", "use_localstorage_for_settings"],
+                    "enabled_features": ["study_templates"]
                 });
+                
+                console.log('TradingView widget initialized successfully');
+                updateConnectionStatus('Connected', '#10b981');
+                
             } catch (error) {
-                console.error('Error initializing TradingView widget:', error);
-                // Retry after a delay if there's an error
+                console.error('Error creating TradingView widget:', error);
+                // Try again after a delay
                 setTimeout(initTradingViewWidget, 1000);
-            }
-        }
-
-        // ======================
-        // DATAFEED IMPLEMENTATION
-        // ======================
-        class Datafeed {
-            constructor() {
-                this._configuration = {
-                    supports_time: true,
-                    supports_marks: false,
-                    supports_timescale_marks: false,
-                    supports_search: true,
-                    supports_group_request: false,
-                    supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W", "M"]
-                };
-            }
-
-            onReady(callback) {
-                setTimeout(() => callback(this._configuration));
-            }
-
-            resolveSymbol(symbolName, onSymbolResolvedCallback, onResolveErrorCallback) {
-                const symbolInfo = {
-                    name: symbolName,
-                    full_name: symbolName,
-                    description: SYNTHETIC_INDICES[symbolName]?.name || symbolName,
-                    type: 'index',
-                    session: '24x7',
-                    timezone: 'Etc/UTC',
-                    ticker: symbolName,
-                    minmov: 1,
-                    minmove2: 0,
-                    pricescale: 100,
-                    has_intraday: true,
-                    intraday_multipliers: ['1', '5', '15', '30', '60', '240'],
-                    supported_resolutions: this._configuration.supported_resolutions,
-                    volume_precision: 0,
-                    data_status: 'streaming'
-                };
-                
-                onSymbolResolvedCallback(symbolInfo);
-            }
-
-            getBars(symbolInfo, resolution, from, to, onHistoryCallback, onErrorCallback, firstDataRequest) {
-                // We'll use the Deriv WebSocket to get historical data
-                if (isConnected && socket && socket.readyState === WebSocket.OPEN) {
-                    const granularity = this._convertResolutionToSeconds(resolution);
-                    
-                    const candlesMsg = {
-                        ticks_history: symbolInfo.ticker,
-                        style: 'candles',
-                        granularity: granularity,
-                        count: 200,
-                        end: 'latest',
-                        subscribe: 1
-                    };
-                    
-                    socket.send(JSON.stringify(candlesMsg));
-                    
-                    // Store callback for when data arrives
-                    this._historyCallback = onHistoryCallback;
-                    this._historyErrorCallback = onErrorCallback;
-                } else {
-                    onErrorCallback('Not connected to Deriv');
-                }
-            }
-
-            subscribeBars(symbolInfo, resolution, onRealtimeCallback, subscribeUID, onResetCacheNeededCallback) {
-                this._realtimeCallback = onRealtimeCallback;
-                this._subscribeUID = subscribeUID;
-                console.log('Subscribed to real-time bars for', symbolInfo.ticker);
-            }
-
-            unsubscribeBars(subscribeUID) {
-                this._realtimeCallback = null;
-                this._subscribeUID = null;
-                console.log('Unsubscribed from real-time bars');
-            }
-
-            _convertResolutionToSeconds(resolution) {
-                switch(resolution) {
-                    case '1': return 1;
-                    case '5': return 5;
-                    case '15': return 15;
-                    case '30': return 30;
-                    case '60': return 60;
-                    case '240': return 240;
-                    case 'D': return 86400;
-                    default: return 60;
-                }
-            }
-
-            handleCandleData(candlesData) {
-                if (!candlesData || !candlesData.length) {
-                    if (this._historyErrorCallback) {
-                        this._historyErrorCallback('No candle data received');
-                    }
-                    return;
-                }
-                
-                const bars = candlesData.map(candle => ({
-                    time: candle.epoch * 1000,
-                    open: parseFloat(candle.open),
-                    high: parseFloat(candle.high),
-                    low: parseFloat(candle.low),
-                    close: parseFloat(candle.close),
-                    volume: 0
-                })).reverse();
-                
-                if (this._historyCallback) {
-                    this._historyCallback(bars, { noData: false });
-                    this._historyCallback = null;
-                    this._historyErrorCallback = null;
-                }
-            }
-
-            handleTickData(tick) {
-                if (!tick || !tick.quote) return;
-                
-                previousPrice = currentPrice;
-                currentPrice = parseFloat(tick.quote);
-                
-                // Add to tick history
-                ticks.unshift({
-                    quote: currentPrice,
-                    epoch: tick.epoch,
-                    symbol: tick.symbol
-                });
-                
-                if (ticks.length > 100) {
-                    ticks.pop();
-                }
-                
-                updatePriceDisplay();
-                updateTickHistory();
-                updateTickIndicator();
-                updateLastUpdate();
-                
-                document.getElementById('ticksReceived').textContent = ticks.length;
-                
-                // Update TradingView with tick data
-                if (this._realtimeCallback && currentPrice) {
-                    const now = Math.floor(Date.now() / 1000);
-                    const barTime = Math.floor(now / this._convertResolutionToSeconds(activeTimeframe)) * 
-                                   this._convertResolutionToSeconds(activeTimeframe) * 1000;
-                    
-                    this._realtimeCallback({
-                        time: barTime,
-                        open: currentPrice,
-                        high: currentPrice,
-                        low: currentPrice,
-                        close: currentPrice,
-                        volume: 0
-                    });
-                }
             }
         }
 
@@ -1072,7 +824,6 @@
                 socket.onopen = function() {
                     console.log('✅ Connected to Deriv WebSocket');
                     isConnected = true;
-                    updateConnectionStatus('Connected', '#10b981');
                     
                     subscribeToSymbol(activeSymbol);
                 };
@@ -1134,22 +885,34 @@
         function handleDerivMessage(data) {
             if (data.msg_type === 'tick') {
                 handleTickData(data.tick);
-            } else if (data.msg_type === 'candles') {
-                // Handle candle data for TradingView
-                const datafeed = tradingViewWidget?._options?.datafeed;
-                if (datafeed && datafeed.handleCandleData) {
-                    datafeed.handleCandleData(data.candles);
-                }
             } else if (data.error) {
                 console.warn('Deriv API Warning:', data.error?.message || 'API Error');
             }
         }
 
         function handleTickData(tick) {
-            const datafeed = tradingViewWidget?._options?.datafeed;
-            if (datafeed && datafeed.handleTickData) {
-                datafeed.handleTickData(tick);
+            if (!tick || !tick.quote) return;
+            
+            previousPrice = currentPrice;
+            currentPrice = parseFloat(tick.quote);
+            
+            // Add to tick history
+            ticks.unshift({
+                quote: currentPrice,
+                epoch: tick.epoch,
+                symbol: tick.symbol
+            });
+            
+            if (ticks.length > 100) {
+                ticks.pop();
             }
+            
+            updatePriceDisplay();
+            updateTickHistory();
+            updateTickIndicator();
+            updateLastUpdate();
+            
+            document.getElementById('ticksReceived').textContent = ticks.length;
         }
 
         // ======================
@@ -1169,7 +932,7 @@
             document.getElementById('currentTimeframe').textContent = timeframe;
             
             if (tradingViewWidget) {
-                tradingViewWidget.setSymbol(activeSymbol, timeframe);
+                tradingViewWidget.chart().setResolution(timeframe);
             }
         }
 
@@ -1198,7 +961,7 @@
             
             // Update TradingView widget
             if (tradingViewWidget) {
-                tradingViewWidget.setSymbol(symbol, activeTimeframe);
+                tradingViewWidget.chart().setSymbol(symbol);
             }
         }
 
@@ -1322,7 +1085,11 @@
         // ======================
         // INITIALIZE
         // ======================
-        window.addEventListener('load', init);
+        // Wait for everything to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Wait a bit more to ensure TradingView library is loaded
+            setTimeout(init, 500);
+        });
     </script>
 </body>
 </html>
