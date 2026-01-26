@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tradingview Implementation for Deriv</title>
-    <!-- TradingView Widget Library -->
-    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <title>Deriv Price Chart - Real Time Trading</title>
     <style>
         :root {
             --background: #0a0b0e;
@@ -168,37 +166,25 @@
             flex-wrap: wrap;
         }
 
-        .chart-type-btn, .indicator-btn, .drawing-btn, .timeframe-btn {
-            padding: 6px 12px;
+        .timeframe-btn {
+            padding: 8px 16px;
             background: var(--secondary);
             border: 1px solid var(--border);
             color: var(--foreground);
             border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 14px;
             transition: all 0.2s;
         }
 
-        .chart-type-btn:hover, .indicator-btn:hover, .drawing-btn:hover, .timeframe-btn:hover {
+        .timeframe-btn:hover {
             background: var(--border);
         }
 
-        .chart-type-btn.active, .timeframe-btn.active {
+        .timeframe-btn.active {
             background: var(--primary);
             color: var(--primary-foreground);
             border-color: var(--primary);
-        }
-
-        .indicator-btn.active {
-            background: #8b5cf6;
-            color: white;
-            border-color: #8b5cf6;
-        }
-
-        .drawing-btn.active {
-            background: #ec4899;
-            color: white;
-            border-color: #ec4899;
         }
 
         .chart-container {
@@ -208,6 +194,13 @@
             position: relative;
             overflow: hidden;
             border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        /* Canvas for Chart */
+        #priceChart {
+            width: 100%;
+            height: 100%;
         }
 
         /* Tick History */
@@ -215,7 +208,6 @@
             background: var(--card);
             border-radius: 12px;
             padding: 20px;
-            margin-top: 20px;
             border: 1px solid var(--border);
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
@@ -455,9 +447,60 @@
             gap: 10px;
         }
 
-        /* TradingView Customizations */
-        .tradingview-widget-copyright {
-            display: none !important;
+        /* Candle Info */
+        .candle-info {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .candle-item {
+            background: var(--secondary);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .candle-label {
+            font-size: 12px;
+            color: var(--muted-foreground);
+            margin-bottom: 4px;
+        }
+
+        .candle-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Chart Toolbar */
+        .chart-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: var(--secondary);
+            border-radius: 8px;
+        }
+
+        .toolbar-btn {
+            padding: 8px 12px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--foreground);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--border);
+        }
+
+        .toolbar-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
         }
 
         /* Responsive */
@@ -491,6 +534,10 @@
                 flex-direction: column;
                 gap: 15px;
             }
+            
+            .candle-info {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
     </style>
 </head>
@@ -504,8 +551,8 @@
 
     <div class="container">
         <div class="header">
-            <h1>Deriv TradingView Chart</h1>
-            <p>Real-time synthetic indices chart with Deriv API</p>
+            <h1>Deriv Price Chart</h1>
+            <p>Real-time synthetic indices trading</p>
             <div class="status-bar">
                 <div class="status">
                     <span class="status-dot" id="wsStatus">●</span>
@@ -515,7 +562,7 @@
                     <span>Symbol: <span id="currentSymbol">1HZ10V</span></span>
                 </div>
                 <div class="status">
-                    <span>Timeframe: <span id="currentTimeframe">1D</span></span>
+                    <span>Tick Speed: <span id="currentTickSpeed">1s</span></span>
                 </div>
             </div>
         </div>
@@ -527,13 +574,11 @@
                     <div class="controls-row">
                         <!-- Left: Timeframes -->
                         <div class="left-controls">
-                            <div class="flex items-center gap-1">
-                                <button class="timeframe-btn" onclick="setTimeframe('1')" id="tf1s">1s</button>
-                                <button class="timeframe-btn" onclick="setTimeframe('60')" id="tf1m">1m</button>
-                                <button class="timeframe-btn" onclick="setTimeframe('300')" id="tf5m">5m</button>
-                                <button class="timeframe-btn" onclick="setTimeframe('900')" id="tf15m">15m</button>
-                                <button class="timeframe-btn" onclick="setTimeframe('3600')" id="tf1h">1H</button>
-                                <button class="timeframe-btn active" onclick="setTimeframe('1D')" id="tf1d">1D</button>
+                            <div class="chart-controls">
+                                <button class="timeframe-btn active" onclick="setChartType('line')">Line</button>
+                                <button class="timeframe-btn" onclick="setChartType('candle')">Candles</button>
+                                <button class="timeframe-btn" onclick="setChartType('area')">Area</button>
+                                <button class="timeframe-btn" onclick="setChartType('bar')">Bars</button>
                             </div>
                         </div>
 
@@ -544,7 +589,8 @@
                                     -
                                 </div>
                                 <div style="font-size: 12px;">
-                                    <div>Last Tick: <span id="lastTickValue">0.00</span></div>
+                                    <div>Last: <span id="lastTickValue">0.00</span></div>
+                                    <div>Change: <span id="tickChange">0.00%</span></div>
                                 </div>
                             </div>
                         </div>
@@ -579,8 +625,27 @@
 
                     <!-- Chart Container -->
                     <div class="chart-container">
-                        <!-- TradingView Widget -->
-                        <div id="tradingview_chart"></div>
+                        <canvas id="priceChart"></canvas>
+                    </div>
+
+                    <!-- Candle Info -->
+                    <div class="candle-info">
+                        <div class="candle-item">
+                            <div class="candle-label">Open</div>
+                            <div class="candle-value" id="candleOpen">--.--</div>
+                        </div>
+                        <div class="candle-item">
+                            <div class="candle-label">High</div>
+                            <div class="candle-value" id="candleHigh">--.--</div>
+                        </div>
+                        <div class="candle-item">
+                            <div class="candle-label">Low</div>
+                            <div class="candle-value" id="candleLow">--.--</div>
+                        </div>
+                        <div class="candle-item">
+                            <div class="candle-label">Close</div>
+                            <div class="candle-value" id="candleClose">--.--</div>
+                        </div>
                     </div>
 
                     <!-- Tick History Panel -->
@@ -600,8 +665,8 @@
                         </div>
                     </div>
 
-                    <div class="instructions" id="instructions">
-                        Real-time synthetic indices data from Deriv. Chart shows simulated data for demonstration.
+                    <div class="instructions">
+                        Real-time synthetic indices data from Deriv WebSocket API
                     </div>
                 </div>
             </div>
@@ -677,15 +742,20 @@
                     </div>
                 </div>
 
-                <!-- Data Controls -->
+                <!-- Chart Controls -->
                 <div class="panel">
-                    <h3>Data Controls</h3>
-                    <div style="margin-top: 10px;">
-                        <button onclick="fetchHistoricalData()" style="width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; margin-bottom: 10px;">
-                            Fetch Historical Data
+                    <h3>Chart Controls</h3>
+                    <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+                        <div class="chart-toolbar">
+                            <button class="toolbar-btn active" onclick="setChartType('line')">Line</button>
+                            <button class="toolbar-btn" onclick="setChartType('candle')">Candle</button>
+                            <button class="toolbar-btn" onclick="setChartType('area')">Area</button>
+                        </div>
+                        <button onclick="clearChart()" style="width: 100%; padding: 10px; background: var(--secondary); color: var(--foreground); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
+                            Clear Chart
                         </button>
-                        <button onclick="resetChart()" style="width: 100%; padding: 10px; background: var(--secondary); color: var(--foreground); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
-                            Reset Chart
+                        <button onclick="downloadData()" style="width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer;">
+                            Download Data
                         </button>
                     </div>
                 </div>
@@ -701,34 +771,33 @@
         let socket = null;
         let isConnected = false;
         let activeSymbol = '1HZ10V';
-        let activeTimeframe = '1D';
+        let chartType = 'line';
+        let chart = null;
+        let chartData = [];
         
         const SYNTHETIC_INDICES = {
-            '1HZ10V': { name: 'Volatility 10 (1s) Index', type: '1s', supportsCandles: true, basePrice: 35000 },
-            'R_10': { name: 'Volatility 10 Index', type: 'standard', supportsCandles: true, basePrice: 35000 },
-            '1HZ15V': { name: 'Volatility 15 (1s) Index', type: '1s', supportsCandles: true, basePrice: 35000 },
-            '1HZ25V': { name: 'Volatility 25 (1s) Index', type: '1s', supportsCandles: true, basePrice: 35000 },
-            'R_25': { name: 'Volatility 25 Index', type: 'standard', supportsCandles: true, basePrice: 35000 },
-            '1HZ30V': { name: 'Volatility 30 (1s) Index', type: '1s', supportsCandles: true, basePrice: 35000 },
-            '1HZ50V': { name: 'Volatility 50 (1s) Index', type: '1s', supportsCandles: true, basePrice: 35000 },
-            'R_50': { name: 'Volatility 50 Index', type: 'standard', supportsCandles: true, basePrice: 35000 },
-            '1HZ75V': { name: 'Volatility 75 (1s) Index', type: '1s', supportsCandles: true, basePrice: 35000 },
-            'R_75': { name: 'Volatility 75 Index', type: 'standard', supportsCandles: true, basePrice: 35000 },
-            '1HZ90V': { name: 'Volatility 90 (1s) Index', type: '1s', supportsCandles: true, basePrice: 35000 },
-            '1HZ100V': { name: 'Volatility 100 (1s) Index', type: '1s', supportsCandles: true, basePrice: 35000 },
-            'R_100': { name: 'Volatility 100 Index', type: 'standard', supportsCandles: true, basePrice: 35000 }
+            '1HZ10V': { name: 'Volatility 10 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_10': { name: 'Volatility 10 Index', type: 'standard', basePrice: 35000 },
+            '1HZ15V': { name: 'Volatility 15 (1s) Index', type: '1s', basePrice: 35000 },
+            '1HZ25V': { name: 'Volatility 25 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_25': { name: 'Volatility 25 Index', type: 'standard', basePrice: 35000 },
+            '1HZ30V': { name: 'Volatility 30 (1s) Index', type: '1s', basePrice: 35000 },
+            '1HZ50V': { name: 'Volatility 50 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_50': { name: 'Volatility 50 Index', type: 'standard', basePrice: 35000 },
+            '1HZ75V': { name: 'Volatility 75 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_75': { name: 'Volatility 75 Index', type: 'standard', basePrice: 35000 },
+            '1HZ90V': { name: 'Volatility 90 (1s) Index', type: '1s', basePrice: 35000 },
+            '1HZ100V': { name: 'Volatility 100 (1s) Index', type: '1s', basePrice: 35000 },
+            'R_100': { name: 'Volatility 100 Index', type: 'standard', basePrice: 35000 }
         };
 
         // ======================
-        // TRADINGVIEW WIDGET
+        // DATA MANAGEMENT
         // ======================
-        let tradingViewWidget = null;
         let ticks = [];
         let currentPrice = 0;
         let previousPrice = 0;
-        let candleData = [];
-
-        // Subscription tracking
+        let currentCandle = null;
         let currentTickSubscription = null;
 
         // ======================
@@ -756,230 +825,396 @@
                     localStorage.setItem('theme', 'light');
                     themeToggle.textContent = '🌙';
                 }
-                updateTradingViewTheme();
+                updateChartTheme();
             });
         }
 
-        function updateTradingViewTheme() {
-            if (tradingViewWidget) {
-                const theme = document.body.classList.contains('light-mode') ? 'light' : 'dark';
-                tradingViewWidget.applyOverrides({
-                    "paneProperties.background": document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b',
-                    "paneProperties.vertGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
-                    "paneProperties.horzGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
-                    "scalesProperties.textColor": document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af',
-                });
-            }
-        }
-
         // ======================
-        // INITIALIZATION
+        // CHART INITIALIZATION
         // ======================
-        function init() {
-            initTheme();
-            connectToDeriv();
+        function initChart() {
+            const canvas = document.getElementById('priceChart');
+            if (!canvas) {
+                console.error('Canvas not found');
+                return;
+            }
+
+            const ctx = canvas.getContext('2d');
             
-            updateSymbolUI();
-            updateLastUpdate();
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Initialize TradingView widget
-            initTradingViewWidget();
+            // Set canvas size
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            // Draw initial chart
+            drawChart();
         }
 
-        // TradingView widget initialization with custom data
-        function initTradingViewWidget() {
-            console.log('Initializing TradingView widget...');
+        function drawChart() {
+            const canvas = document.getElementById('priceChart');
+            const ctx = canvas.getContext('2d');
             
-            const container = document.getElementById('tradingview_chart');
-            if (!container) {
-                console.error('TradingView container not found!');
-                setTimeout(initTradingViewWidget, 100);
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (chartData.length === 0) {
+                drawNoData(ctx);
                 return;
             }
             
-            if (typeof TradingView === 'undefined') {
-                console.log('Waiting for TradingView library...');
-                setTimeout(initTradingViewWidget, 100);
-                return;
+            // Calculate chart dimensions
+            const padding = 40;
+            const chartWidth = canvas.width - padding * 2;
+            const chartHeight = canvas.height - padding * 2;
+            
+            // Find min and max values
+            let minPrice = Infinity;
+            let maxPrice = -Infinity;
+            
+            chartData.forEach(point => {
+                if (chartType === 'candle' && point.candle) {
+                    minPrice = Math.min(minPrice, point.candle.low);
+                    maxPrice = Math.max(maxPrice, point.candle.high);
+                } else {
+                    minPrice = Math.min(minPrice, point.price);
+                    maxPrice = Math.max(maxPrice, point.price);
+                }
+            });
+            
+            // Add some padding to price range
+            const priceRange = maxPrice - minPrice;
+            minPrice -= priceRange * 0.1;
+            maxPrice += priceRange * 0.1;
+            
+            // Draw grid
+            drawGrid(ctx, padding, chartWidth, chartHeight);
+            
+            // Draw price labels
+            drawPriceLabels(ctx, padding, chartHeight, minPrice, maxPrice);
+            
+            // Draw time labels
+            drawTimeLabels(ctx, padding, chartWidth, chartHeight);
+            
+            // Draw chart based on type
+            switch(chartType) {
+                case 'line':
+                    drawLineChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
+                    break;
+                case 'candle':
+                    drawCandleChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
+                    break;
+                case 'area':
+                    drawAreaChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
+                    break;
+                case 'bar':
+                    drawBarChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
+                    break;
             }
             
-            try {
-                // Create widget with empty data initially
-                tradingViewWidget = new TradingView.widget({
-                    "width": "100%",
-                    "height": "100%",
-                    "symbol": activeSymbol,
-                    "interval": "D",
-                    "timezone": "Etc/UTC",
-                    "theme": document.body.classList.contains('light-mode') ? 'light' : 'dark',
-                    "style": "1",
-                    "locale": "en",
-                    "toolbar_bg": document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b',
-                    "enable_publishing": false,
-                    "allow_symbol_change": false,
-                    "save_image": false,
-                    "container_id": "tradingview_chart",
-                    "studies": [
-                        "Volume@tv-basicstudies",
-                        "MovingAverage@tv-basicstudies"
-                    ],
-                    "show_popup_button": true,
-                    "popup_width": "1000",
-                    "popup_height": "650",
-                    "overrides": {
-                        "mainSeriesProperties.candleStyle.upColor": "#10b981",
-                        "mainSeriesProperties.candleStyle.downColor": "#ef4444",
-                        "mainSeriesProperties.candleStyle.borderUpColor": "#10b981",
-                        "mainSeriesProperties.candleStyle.borderDownColor": "#ef4444",
-                        "mainSeriesProperties.candleStyle.wickUpColor": "#10b981",
-                        "mainSeriesProperties.candleStyle.wickDownColor": "#ef4444",
-                        "paneProperties.background": document.body.classList.contains('light-mode') ? '#f1f5f9' : '#1e293b',
-                        "paneProperties.vertGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
-                        "paneProperties.horzGridProperties.color": document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)',
-                        "scalesProperties.textColor": document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af',
-                    },
-                    "disabled_features": [
-                        "header_symbol_search", 
-                        "symbol_search_hot_key", 
-                        "header_compare", 
-                        "use_localstorage_for_settings",
-                        "save_chart_properties_to_local_storage"
-                    ],
-                    "enabled_features": ["study_templates", "side_toolbar_in_fullscreen_mode"],
-                    "datafeed": {
-                        onReady: function(callback) {
-                            console.log('Datafeed ready');
-                            callback({
-                                supports_search: true,
-                                supports_group_request: false,
-                                supports_marks: false,
-                                supports_timescale_marks: false,
-                                supports_time: true,
-                                supported_resolutions: ['1', '5', '15', '30', '60', '1D', '1W', '1M']
-                            });
-                        },
-                        searchSymbols: function(userInput, exchange, symbolType, onResultReadyCallback) {
-                            console.log('Searching symbols:', userInput);
-                            onResultReadyCallback([]);
-                        },
-                        resolveSymbol: function(symbolName, onSymbolResolvedCallback, onResolveErrorCallback) {
-                            console.log('Resolving symbol:', symbolName);
-                            
-                            const symbolInfo = {
-                                name: symbolName,
-                                full_name: symbolName,
-                                ticker: symbolName,
-                                description: SYNTHETIC_INDICES[symbolName]?.name || symbolName,
-                                type: 'crypto',
-                                session: '24x7',
-                                timezone: 'Etc/UTC',
-                                exchange: 'Deriv',
-                                minmov: 1,
-                                pricescale: 100,
-                                has_intraday: true,
-                                has_no_volume: false,
-                                has_weekly_and_monthly: true,
-                                supported_resolutions: ['1', '5', '15', '30', '60', '1D', '1W', '1M'],
-                                volume_precision: 2,
-                                data_status: 'streaming'
-                            };
-                            
-                            onSymbolResolvedCallback(symbolInfo);
-                        },
-                        getBars: function(symbolInfo, resolution, from, to, onHistoryCallback, onErrorCallback, firstDataRequest) {
-                            console.log('Getting bars:', symbolInfo.name, resolution, from, to);
-                            
-                            // Convert timestamps
-                            const fromDate = new Date(from * 1000);
-                            const toDate = new Date(to * 1000);
-                            
-                            // Generate or fetch candle data
-                            if (candleData.length === 0) {
-                                generateSampleCandleData();
-                            }
-                            
-                            // Filter data based on time range
-                            const filteredData = candleData.filter(bar => {
-                                const barTime = bar.time / 1000;
-                                return barTime >= from && barTime <= to;
-                            });
-                            
-                            if (filteredData.length > 0) {
-                                onHistoryCallback(filteredData, { noData: false });
-                            } else {
-                                onHistoryCallback([], { noData: true });
-                            }
-                        },
-                        subscribeBars: function(symbolInfo, resolution, onRealtimeCallback, subscribeUID, onResetCacheNeededCallback) {
-                            console.log('Subscribing to bars:', symbolInfo.name);
-                            // Real-time updates will be handled separately
-                        },
-                        unsubscribeBars: function(subscribeUID) {
-                            console.log('Unsubscribing from bars:', subscribeUID);
-                        }
-                    }
-                });
-                
-                console.log('TradingView widget initialized successfully');
-                
-            } catch (error) {
-                console.error('Error creating TradingView widget:', error);
-                setTimeout(initTradingViewWidget, 2000);
+            // Draw current price line
+            drawCurrentPriceLine(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
+        }
+
+        function drawGrid(ctx, padding, chartWidth, chartHeight) {
+            ctx.strokeStyle = document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            
+            // Vertical grid lines
+            for (let i = 0; i <= 10; i++) {
+                const x = padding + (i * chartWidth / 10);
+                ctx.beginPath();
+                ctx.moveTo(x, padding);
+                ctx.lineTo(x, padding + chartHeight);
+                ctx.stroke();
+            }
+            
+            // Horizontal grid lines
+            for (let i = 0; i <= 10; i++) {
+                const y = padding + (i * chartHeight / 10);
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(padding + chartWidth, y);
+                ctx.stroke();
+            }
+            
+            // Chart border
+            ctx.strokeStyle = document.body.classList.contains('light-mode') ? '#cbd5e1' : 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(padding, padding, chartWidth, chartHeight);
+        }
+
+        function drawPriceLabels(ctx, padding, chartHeight, minPrice, maxPrice) {
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af';
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= 10; i++) {
+                const price = maxPrice - ((maxPrice - minPrice) * i / 10);
+                const y = padding + (i * chartHeight / 10);
+                ctx.fillText(price.toFixed(2), padding - 5, y + 4);
             }
         }
 
-        // Generate sample candle data for demonstration
-        function generateSampleCandleData() {
-            candleData = [];
-            const now = Date.now();
-            const basePrice = SYNTHETIC_INDICES[activeSymbol]?.basePrice || 35000;
+        function drawTimeLabels(ctx, padding, chartWidth, chartHeight) {
+            if (chartData.length === 0) return;
             
-            // Generate 100 candles
-            for (let i = 0; i < 100; i++) {
-                const time = now - (100 - i) * 24 * 60 * 60 * 1000; // Daily candles
-                const open = basePrice + Math.random() * 1000 - 500;
-                const close = open + Math.random() * 2000 - 1000;
-                const high = Math.max(open, close) + Math.random() * 500;
-                const low = Math.min(open, close) - Math.random() * 500;
-                const volume = Math.random() * 1000;
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af';
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'center';
+            
+            const timesToShow = 5;
+            const interval = Math.floor(chartData.length / timesToShow);
+            
+            for (let i = 0; i < timesToShow; i++) {
+                const dataIndex = Math.min(i * interval, chartData.length - 1);
+                const x = padding + (dataIndex * chartWidth / (chartData.length - 1));
+                const time = chartData[dataIndex].time;
                 
-                candleData.push({
-                    time: time,
-                    open: open,
-                    high: high,
-                    low: low,
-                    close: close,
-                    volume: volume
-                });
+                const date = new Date(time);
+                const timeString = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                
+                ctx.fillText(timeString, x, padding + chartHeight + 20);
             }
         }
 
-        // Fetch real historical data from Deriv
-        function fetchHistoricalData() {
-            if (!socket || socket.readyState !== WebSocket.OPEN) {
-                alert('WebSocket not connected');
-                return;
-            }
+        function drawLineChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
+            if (chartData.length < 2) return;
             
-            const request = {
-                ticks_history: activeSymbol,
-                end: 'latest',
-                count: 1000,
-                style: 'candles',
-                subscribe: 0
-            };
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
             
-            socket.send(JSON.stringify(request));
-            console.log('Requested historical data for', activeSymbol);
+            chartData.forEach((point, index) => {
+                const x = padding + (index * chartWidth / (chartData.length - 1));
+                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            
+            ctx.stroke();
+            
+            // Draw data points
+            ctx.fillStyle = '#3b82f6';
+            chartData.forEach((point, index) => {
+                const x = padding + (index * chartWidth / (chartData.length - 1));
+                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
         }
 
-        // Reset chart with new data
-        function resetChart() {
+        function drawCandleChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
+            if (chartData.length === 0) return;
+            
+            const candleWidth = Math.min(10, chartWidth / chartData.length * 0.8);
+            
+            chartData.forEach((point, index) => {
+                if (!point.candle) return;
+                
+                const x = padding + (index * chartWidth / (chartData.length - 1));
+                const candle = point.candle;
+                
+                // Calculate Y positions
+                const openY = padding + chartHeight - ((candle.open - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                const closeY = padding + chartHeight - ((candle.close - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                const highY = padding + chartHeight - ((candle.high - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                const lowY = padding + chartHeight - ((candle.low - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                
+                // Determine color
+                const isBullish = candle.close > candle.open;
+                ctx.fillStyle = isBullish ? '#10b981' : '#ef4444';
+                ctx.strokeStyle = isBullish ? '#10b981' : '#ef4444';
+                
+                // Draw wick
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, highY);
+                ctx.lineTo(x, lowY);
+                ctx.stroke();
+                
+                // Draw candle body
+                ctx.fillRect(
+                    x - candleWidth / 2,
+                    Math.min(openY, closeY),
+                    candleWidth,
+                    Math.abs(closeY - openY)
+                );
+                
+                // Draw border
+                ctx.strokeRect(
+                    x - candleWidth / 2,
+                    Math.min(openY, closeY),
+                    candleWidth,
+                    Math.abs(closeY - openY)
+                );
+            });
+        }
+
+        function drawAreaChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
+            if (chartData.length < 2) return;
+            
+            // Create gradient
+            const gradient = ctx.createLinearGradient(0, padding, 0, padding + chartHeight);
+            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+            gradient.addColorStop(1, 'rgba(59, 130, 246, 0.1)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            
+            // Draw top line
+            chartData.forEach((point, index) => {
+                const x = padding + (index * chartWidth / (chartData.length - 1));
+                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            
+            // Complete the area
+            const lastX = padding + ((chartData.length - 1) * chartWidth / (chartData.length - 1));
+            ctx.lineTo(lastX, padding + chartHeight);
+            ctx.lineTo(padding, padding + chartHeight);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Draw line on top
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            chartData.forEach((point, index) => {
+                const x = padding + (index * chartWidth / (chartData.length - 1));
+                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            
+            ctx.stroke();
+        }
+
+        function drawBarChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
+            if (chartData.length === 0) return;
+            
+            const barWidth = Math.min(20, chartWidth / chartData.length * 0.6);
+            
+            chartData.forEach((point, index) => {
+                const x = padding + (index * chartWidth / (chartData.length - 1));
+                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                
+                // Determine color based on price change
+                const prevPrice = index > 0 ? chartData[index - 1].price : point.price;
+                const isBullish = point.price > prevPrice;
+                ctx.fillStyle = isBullish ? '#10b981' : '#ef4444';
+                
+                ctx.fillRect(
+                    x - barWidth / 2,
+                    y,
+                    barWidth,
+                    padding + chartHeight - y
+                );
+            });
+        }
+
+        function drawCurrentPriceLine(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
+            if (currentPrice === 0) return;
+            
+            const y = padding + chartHeight - ((currentPrice - minPrice) / (maxPrice - minPrice)) * chartHeight;
+            
+            ctx.strokeStyle = currentPrice > previousPrice ? '#10b981' : '#ef4444';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            
+            ctx.beginPath();
+            ctx.moveTo(padding, y);
+            ctx.lineTo(padding + chartWidth, y);
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+            
+            // Draw price label
+            ctx.fillStyle = currentPrice > previousPrice ? '#10b981' : '#ef4444';
+            ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(currentPrice.toFixed(2), padding + chartWidth + 5, y + 4);
+        }
+
+        function drawNoData(ctx) {
+            const canvas = document.getElementById('priceChart');
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af';
+            ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Waiting for data...', centerX, centerY);
+        }
+
+        function updateChartTheme() {
+            drawChart();
+        }
+
+        function setChartType(type) {
+            chartType = type;
+            
+            // Update button states
+            document.querySelectorAll('.timeframe-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.toolbar-btn').forEach(btn => btn.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            
+            drawChart();
+        }
+
+        function clearChart() {
+            chartData = [];
             ticks = [];
-            candleData = [];
-            generateSampleCandleData();
+            currentPrice = 0;
+            previousPrice = 0;
+            currentCandle = null;
+            
             updateTickHistory();
-            console.log('Chart reset');
+            drawChart();
+            console.log('Chart cleared');
+        }
+
+        function downloadData() {
+            if (chartData.length === 0) {
+                alert('No data to download');
+                return;
+            }
+            
+            const csvContent = "data:text/csv;charset=utf-8," 
+                + ["Time,Price,Open,High,Low,Close"].join(",") + "\n"
+                + chartData.map(point => {
+                    const time = new Date(point.time).toISOString();
+                    if (point.candle) {
+                        return `${time},${point.price},${point.candle.open},${point.candle.high},${point.candle.low},${point.candle.close}`;
+                    }
+                    return `${time},${point.price},${point.price},${point.price},${point.price},${point.price}`;
+                }).join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `deriv_data_${activeSymbol}_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // ======================
@@ -995,14 +1230,15 @@
                     updateConnectionStatus('Connected', '#10b981');
                     
                     subscribeToSymbol(activeSymbol);
-                    
-                    // Fetch initial candles data
-                    setTimeout(fetchHistoricalData, 1000);
                 };
                 
                 socket.onmessage = function(event) {
-                    const data = JSON.parse(event.data);
-                    handleDerivMessage(data);
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleDerivMessage(data);
+                    } catch (error) {
+                        console.error('Error parsing WebSocket message:', error);
+                    }
                 };
                 
                 socket.onerror = function(error) {
@@ -1040,7 +1276,6 @@
         function subscribeToSymbol(symbol) {
             if (!socket || socket.readyState !== WebSocket.OPEN) return;
             
-            // Unsubscribe from previous ticks if different
             if (currentTickSubscription && currentTickSubscription !== symbol) {
                 unsubscribeFromTicks();
             }
@@ -1055,13 +1290,18 @@
             currentTickSubscription = symbol;
             
             document.getElementById('subscribedSymbols').textContent = symbol;
+            
+            // Also subscribe to OHLC data
+            const ohlcSubscribeMsg = {
+                ohlc: 1,
+                subscribe: 1
+            };
+            socket.send(JSON.stringify(ohlcSubscribeMsg));
         }
 
         function handleDerivMessage(data) {
             if (data.msg_type === 'tick') {
                 handleTickData(data.tick);
-            } else if (data.msg_type === 'candles') {
-                handleCandleData(data.candles);
             } else if (data.msg_type === 'ohlc') {
                 handleOHLCData(data.ohlc);
             } else if (data.error) {
@@ -1087,6 +1327,19 @@
                 ticks.pop();
             }
             
+            // Add to chart data
+            const now = Date.now();
+            chartData.push({
+                time: now,
+                price: currentPrice,
+                candle: null
+            });
+            
+            // Keep only last 100 data points
+            if (chartData.length > 100) {
+                chartData.shift();
+            }
+            
             updatePriceDisplay();
             updateTickHistory();
             updateTickIndicator();
@@ -1104,64 +1357,72 @@
             
             // Update market high/low
             updateMarketHighLow();
-        }
-
-        function handleCandleData(candles) {
-            if (!candles || candles.length === 0) return;
             
-            console.log('Received candles:', candles.length);
+            // Update candle data
+            updateCandleData();
             
-            // Convert Deriv candles to TradingView format
-            candleData = candles.map(candle => ({
-                time: candle.epoch * 1000,
-                open: parseFloat(candle.open),
-                high: parseFloat(candle.high),
-                low: parseFloat(candle.low),
-                close: parseFloat(candle.close),
-                volume: parseFloat(candle.volume) || 0
-            }));
-            
-            // Update chart if TradingView is ready
-            if (tradingViewWidget && tradingViewWidget.chart && candleData.length > 0) {
-                try {
-                    // Note: In a real implementation, you would update the chart data
-                    // This requires a more complex integration with TradingView's datafeed
-                    console.log('Candle data processed:', candleData.length, 'candles');
-                } catch (error) {
-                    console.warn('Could not update TradingView chart:', error);
-                }
-            }
+            // Redraw chart
+            drawChart();
         }
 
         function handleOHLCData(ohlc) {
             if (!ohlc) return;
             
-            // Update current price from OHLC
-            currentPrice = parseFloat(ohlc.close);
-            updatePriceDisplay();
+            // Update current candle
+            if (!currentCandle) {
+                currentCandle = {
+                    open: parseFloat(ohlc.open),
+                    high: parseFloat(ohlc.high),
+                    low: parseFloat(ohlc.low),
+                    close: parseFloat(ohlc.close),
+                    time: ohlc.open_time * 1000
+                };
+            } else {
+                currentCandle.high = Math.max(currentCandle.high, parseFloat(ohlc.high));
+                currentCandle.low = Math.min(currentCandle.low, parseFloat(ohlc.low));
+                currentCandle.close = parseFloat(ohlc.close);
+            }
+            
+            // Update candle display
+            updateCandleDisplay();
+        }
+
+        function updateCandleData() {
+            if (!currentCandle) {
+                currentCandle = {
+                    open: currentPrice,
+                    high: currentPrice,
+                    low: currentPrice,
+                    close: currentPrice,
+                    time: Date.now()
+                };
+            } else {
+                currentCandle.high = Math.max(currentCandle.high, currentPrice);
+                currentCandle.low = Math.min(currentCandle.low, currentPrice);
+                currentCandle.close = currentPrice;
+            }
+            
+            // Update the last chart data point with candle info
+            if (chartData.length > 0) {
+                const lastPoint = chartData[chartData.length - 1];
+                lastPoint.candle = { ...currentCandle };
+            }
+            
+            updateCandleDisplay();
+        }
+
+        function updateCandleDisplay() {
+            if (currentCandle) {
+                document.getElementById('candleOpen').textContent = currentCandle.open.toFixed(2);
+                document.getElementById('candleHigh').textContent = currentCandle.high.toFixed(2);
+                document.getElementById('candleLow').textContent = currentCandle.low.toFixed(2);
+                document.getElementById('candleClose').textContent = currentCandle.close.toFixed(2);
+            }
         }
 
         // ======================
         // UI CONTROLS
         // ======================
-        function setTimeframe(timeframe) {
-            activeTimeframe = timeframe;
-            
-            // Update button states
-            document.querySelectorAll('.timeframe-btn').forEach(btn => btn.classList.remove('active'));
-            const buttonId = 'tf' + timeframe.replace('/', '');
-            const button = document.getElementById(buttonId);
-            if (button) {
-                button.classList.add('active');
-            }
-            
-            document.getElementById('currentTimeframe').textContent = timeframe;
-            
-            // In a real implementation, you would update the chart timeframe
-            // For now, we'll just log it
-            console.log('Timeframe changed to:', timeframe);
-        }
-
         function changeSymbol(symbol) {
             // Unsubscribe from current tick
             if (isConnected && currentTickSubscription) {
@@ -1176,28 +1437,21 @@
             
             updateSymbolUI();
             
-            // Clear tick history
+            // Clear data
             ticks = [];
+            chartData = [];
             currentPrice = 0;
             previousPrice = 0;
+            currentCandle = null;
             
-            // Update tick history display
+            // Update displays
             updateTickHistory();
+            updateCandleDisplay();
+            drawChart();
             
             // Request new data
             if (isConnected) {
                 subscribeToSymbol(symbol);
-                setTimeout(fetchHistoricalData, 500);
-            }
-            
-            // Update TradingView symbol display
-            if (tradingViewWidget) {
-                try {
-                    // This would update the chart symbol in a real implementation
-                    console.log('Symbol changed to:', symbol);
-                } catch (error) {
-                    console.warn('Could not update TradingView symbol:', error);
-                }
             }
         }
 
@@ -1210,6 +1464,7 @@
             
             document.getElementById('currentSymbol').textContent = activeSymbol;
             document.getElementById('selectedSymbolName').textContent = symbolInfo.name;
+            document.getElementById('currentTickSpeed').textContent = symbolInfo.type === '1s' ? '1s' : 'Standard';
             
             const isFast = symbolInfo.type === '1s';
             const badgeClass = isFast ? 'badge-fast' : 'badge-standard';
@@ -1225,6 +1480,7 @@
             const priceElement = document.getElementById('currentPrice');
             const changeElement = document.getElementById('priceChange');
             const marketPriceElement = document.getElementById('marketCurrentPrice');
+            const tickChangeElement = document.getElementById('tickChange');
             
             if (currentPrice > 0) {
                 priceElement.textContent = currentPrice.toFixed(2);
@@ -1236,18 +1492,26 @@
                     
                     const isPositive = change >= 0;
                     const changeText = `${isPositive ? '+' : ''}${change.toFixed(2)} (${isPositive ? '+' : ''}${changePercent.toFixed(2)}%)`;
+                    const tickChangeText = `${isPositive ? '+' : ''}${changePercent.toFixed(2)}%`;
                     
                     changeElement.textContent = changeText;
+                    tickChangeElement.textContent = tickChangeText;
+                    tickChangeElement.style.color = isPositive ? '#10b981' : '#ef4444';
+                    
                     changeElement.className = isPositive ? 'price-change price-up' : 'price-change price-down';
                     priceElement.className = isPositive ? 'price-display price-up' : 'price-display price-down';
                 } else {
                     priceElement.className = 'price-display price-up';
                     changeElement.textContent = '+0.00 (0.00%)';
+                    tickChangeElement.textContent = '0.00%';
+                    tickChangeElement.style.color = '#9ca3af';
                 }
             } else {
                 priceElement.textContent = '--.--';
                 marketPriceElement.textContent = '--.--';
                 changeElement.textContent = '+0.00 (0.00%)';
+                tickChangeElement.textContent = '0.00%';
+                tickChangeElement.style.color = '#9ca3af';
             }
         }
 
@@ -1345,8 +1609,25 @@
         }
 
         // ======================
-        // INITIALIZE
+        // INITIALIZATION
         // ======================
+        function init() {
+            initTheme();
+            initChart();
+            connectToDeriv();
+            
+            updateSymbolUI();
+            updateLastUpdate();
+            
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                drawChart();
+            });
+            
+            // Update chart periodically
+            setInterval(drawChart, 1000);
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(init, 500);
         });
