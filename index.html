@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deriv Price Chart - Real Time Trading</title>
+    <title>Deriv Candlestick Chart - Advanced Trading</title>
     <style>
         :root {
             --background: #0a0b0e;
@@ -16,6 +16,9 @@
             --chart-bullish: #10b981;
             --chart-bearish: #ef4444;
             --muted-foreground: #9ca3af;
+            --grid-color: rgba(255, 255, 255, 0.1);
+            --volume-up: rgba(16, 185, 129, 0.3);
+            --volume-down: rgba(239, 68, 68, 0.3);
         }
 
         .light-mode {
@@ -29,13 +32,16 @@
             --chart-bullish: #10b981;
             --chart-bearish: #ef4444;
             --muted-foreground: #64748b;
+            --grid-color: rgba(0, 0, 0, 0.1);
+            --volume-up: rgba(16, 185, 129, 0.2);
+            --volume-down: rgba(239, 68, 68, 0.2);
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             transition: background-color 0.3s, color 0.3s;
         }
 
@@ -48,7 +54,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
         }
 
@@ -65,6 +71,13 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: var(--muted-foreground);
+            margin-bottom: 20px;
         }
 
         .status-bar {
@@ -73,15 +86,17 @@
             gap: 20px;
             margin-top: 15px;
             font-size: 14px;
+            flex-wrap: wrap;
         }
 
         .status {
             display: flex;
             align-items: center;
             gap: 6px;
-            padding: 6px 12px;
+            padding: 8px 16px;
             background: var(--secondary);
             border-radius: 20px;
+            border: 1px solid var(--border);
         }
 
         .status-dot {
@@ -106,7 +121,7 @@
 
         .dashboard {
             display: grid;
-            grid-template-columns: 1fr 320px;
+            grid-template-columns: 1fr 350px;
             gap: 24px;
         }
 
@@ -119,36 +134,37 @@
         /* Chart Area */
         .chart-area {
             background: var(--card);
-            border-radius: 12px;
-            padding: 20px;
+            border-radius: 16px;
+            padding: 24px;
             border: 1px solid var(--border);
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
         }
 
         .chart-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
             border-bottom: 1px solid var(--border);
         }
 
         .symbol-info {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 20px;
         }
 
         .symbol {
-            font-size: 1.5rem;
-            font-weight: 600;
+            font-size: 1.8rem;
+            font-weight: 700;
         }
 
         .price-display {
-            font-size: 1.8rem;
-            font-weight: 700;
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
         }
 
         .price-up {
@@ -159,21 +175,37 @@
             color: #ef4444;
         }
 
+        .price-neutral {
+            color: var(--muted-foreground);
+        }
+
+        .price-change {
+            font-size: 1.1rem;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: var(--secondary);
+        }
+
         .chart-controls {
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 8px;
+            margin-bottom: 20px;
+            padding: 12px;
+            background: var(--secondary);
+            border-radius: 10px;
             flex-wrap: wrap;
         }
 
         .timeframe-btn {
-            padding: 8px 16px;
-            background: var(--secondary);
+            padding: 10px 20px;
+            background: transparent;
             border: 1px solid var(--border);
             color: var(--foreground);
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
+            font-weight: 500;
             transition: all 0.2s;
         }
 
@@ -185,22 +217,157 @@
             background: var(--primary);
             color: var(--primary-foreground);
             border-color: var(--primary);
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
         }
 
         .chart-container {
-            height: 500px;
+            height: 550px;
             background: var(--secondary);
-            border-radius: 8px;
+            border-radius: 12px;
             position: relative;
             overflow: hidden;
             border: 1px solid var(--border);
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
-        /* Canvas for Chart */
-        #priceChart {
+        /* Chart Canvas */
+        #candlestickChart {
             width: 100%;
             height: 100%;
+        }
+
+        /* Volume Panel */
+        .volume-panel {
+            height: 120px;
+            background: var(--secondary);
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        #volumeChart {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Candle Info */
+        .candle-info-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .candle-info-card {
+            background: var(--secondary);
+            padding: 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .candle-label {
+            font-size: 12px;
+            color: var(--muted-foreground);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .candle-value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .candle-value.bullish {
+            color: #10b981;
+        }
+
+        .candle-value.bearish {
+            color: #ef4444;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel h3 {
+            margin-bottom: 20px;
+            color: var(--foreground);
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel h3:before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        /* Dropdown Styles */
+        .select-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        select {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--secondary);
+            border: 2px solid var(--border);
+            color: var(--foreground);
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 40px;
+            font-weight: 500;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-fast {
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            color: white;
+        }
+
+        .badge-standard {
+            background: var(--border);
+            color: var(--foreground);
         }
 
         /* Tick History */
@@ -208,67 +375,75 @@
             background: var(--card);
             border-radius: 12px;
             padding: 20px;
+            margin-top: 20px;
             border: 1px solid var(--border);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
         .tick-pattern {
             display: flex;
             gap: 4px;
-            margin: 15px 0;
+            margin: 20px 0;
             flex-wrap: wrap;
+            justify-content: center;
         }
 
         .tick-rise {
-            width: 24px;
-            height: 24px;
-            background: #10b981;
-            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #10b981, #34d399);
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-weight: bold;
             font-size: 12px;
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
         }
 
         .tick-fall {
-            width: 24px;
-            height: 24px;
-            background: #ef4444;
-            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #ef4444, #f87171);
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-weight: bold;
             font-size: 12px;
+            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
         }
 
         .tick-neutral {
-            width: 24px;
-            height: 24px;
-            background: var(--muted-foreground);
-            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            background: var(--border);
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: var(--muted-foreground);
             font-weight: bold;
             font-size: 12px;
         }
 
         .tick-stats {
             display: flex;
-            gap: 20px;
-            margin-top: 15px;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
         }
 
         .tick-count {
             font-size: 14px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--secondary);
+            border-radius: 8px;
         }
 
         .tick-count:before {
@@ -286,124 +461,61 @@
             background: #ef4444;
         }
 
-        /* Sidebar */
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .panel {
-            background: var(--card);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid var(--border);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .panel h3 {
-            margin-bottom: 15px;
-            color: var(--foreground);
-            font-size: 16px;
-        }
-
-        /* Dropdown Styles */
-        .select-wrapper {
-            position: relative;
-            width: 100%;
-        }
-
-        select {
-            width: 100%;
-            padding: 10px 12px;
-            background: var(--secondary);
-            border: 1px solid var(--border);
-            color: var(--foreground);
-            border-radius: 8px;
-            font-size: 14px;
-            cursor: pointer;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 10px center;
-            padding-right: 30px;
-        }
-
-        select:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 600;
-        }
-
-        .badge-fast {
-            background: #8b5cf6;
-            color: white;
-        }
-
-        .badge-standard {
-            background: var(--border);
-            color: var(--foreground);
-        }
-
-        .instructions {
-            text-align: center;
-            font-size: 12px;
-            color: var(--muted-foreground);
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid var(--border);
-        }
-
         /* Tick Detector */
         .tick-detector {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 16px;
+            padding: 16px;
+            background: var(--secondary);
+            border-radius: 12px;
+            border: 1px solid var(--border);
         }
 
         .tick-indicator {
-            width: 56px;
-            height: 56px;
-            border-radius: 10px;
+            width: 64px;
+            height: 64px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
+            font-size: 32px;
             font-weight: bold;
             transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
         .tick-rise-indicator {
-            background: rgba(16, 185, 129, 0.2);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
             border: 2px solid #10b981;
             color: #10b981;
         }
 
         .tick-fall-indicator {
-            background: rgba(239, 68, 68, 0.2);
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
             border: 2px solid #ef4444;
             color: #ef4444;
         }
 
         .tick-neutral-indicator {
-            background: rgba(156, 163, 175, 0.2);
-            border: 2px solid #9ca3af;
-            color: #9ca3af;
+            background: var(--secondary);
+            border: 2px solid var(--border);
+            color: var(--muted-foreground);
         }
 
         .tick-flash {
-            animation: flash 0.3s;
+            animation: flash 0.3s ease-in-out;
         }
 
         @keyframes flash {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { 
+                transform: scale(1);
+                opacity: 1; 
+            }
+            50% { 
+                transform: scale(1.1);
+                opacity: 0.8; 
+            }
         }
 
         /* Theme Toggle */
@@ -415,82 +527,48 @@
         }
 
         .theme-btn {
-            width: 40px;
-            height: 40px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
             background: var(--secondary);
-            border: 1px solid var(--border);
+            border: 2px solid var(--border);
             color: var(--foreground);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 24px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
         .theme-btn:hover {
+            transform: rotate(30deg);
             background: var(--primary);
             color: var(--primary-foreground);
-        }
-
-        /* Controls Row */
-        .controls-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .left-controls, .right-controls {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        /* Candle Info */
-        .candle-info {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .candle-item {
-            background: var(--secondary);
-            padding: 10px;
-            border-radius: 6px;
-            text-align: center;
-        }
-
-        .candle-label {
-            font-size: 12px;
-            color: var(--muted-foreground);
-            margin-bottom: 4px;
-        }
-
-        .candle-value {
-            font-size: 14px;
-            font-weight: 600;
         }
 
         /* Chart Toolbar */
         .chart-toolbar {
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            padding: 10px;
+            gap: 8px;
+            margin: 20px 0;
+            padding: 12px;
             background: var(--secondary);
-            border-radius: 8px;
+            border-radius: 10px;
+            flex-wrap: wrap;
         }
 
         .toolbar-btn {
-            padding: 8px 12px;
+            padding: 10px 20px;
             background: transparent;
             border: 1px solid var(--border);
             color: var(--foreground);
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
         }
 
         .toolbar-btn:hover {
@@ -499,44 +577,129 @@
 
         .toolbar-btn.active {
             background: var(--primary);
-            color: white;
+            color: var(--primary-foreground);
             border-color: var(--primary);
         }
 
+        /* Indicators Panel */
+        .indicators-panel {
+            margin-top: 20px;
+            padding: 16px;
+            background: var(--secondary);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .indicator-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .indicator-item:last-child {
+            border-bottom: none;
+        }
+
+        .indicator-name {
+            font-size: 14px;
+            color: var(--foreground);
+        }
+
+        .indicator-value {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .indicator-value.positive {
+            color: #10b981;
+        }
+
+        .indicator-value.negative {
+            color: #ef4444;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
         /* Responsive */
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
             .dashboard {
                 gap: 16px;
             }
             
             .chart-header {
                 flex-direction: column;
-                gap: 15px;
+                gap: 20px;
                 align-items: flex-start;
+            }
+            
+            .chart-container {
+                height: 450px;
+            }
+            
+            .symbol-info {
+                flex-wrap: wrap;
+            }
+            
+            .candle-info-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .tick-detector {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header {
+                padding: 15px 0;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .chart-area {
+                padding: 16px;
             }
             
             .chart-container {
                 height: 400px;
             }
             
-            .chart-controls {
-                overflow-x: auto;
-                padding-bottom: 10px;
+            .price-display {
+                font-size: 1.8rem;
             }
             
-            .tick-indicator {
-                width: 48px;
-                height: 48px;
-                font-size: 24px;
+            .status-bar {
+                gap: 10px;
             }
             
-            .controls-row {
-                flex-direction: column;
-                gap: 15px;
-            }
-            
-            .candle-info {
-                grid-template-columns: repeat(2, 1fr);
+            .status {
+                padding: 6px 12px;
+                font-size: 12px;
             }
         }
     </style>
@@ -551,18 +714,21 @@
 
     <div class="container">
         <div class="header">
-            <h1>Deriv Price Chart</h1>
-            <p>Real-time synthetic indices trading</p>
+            <h1>Deriv Candlestick Chart</h1>
+            <div class="subtitle">Advanced price action analysis with real-time synthetic indices</div>
             <div class="status-bar">
                 <div class="status">
                     <span class="status-dot" id="wsStatus">●</span>
-                    <span>Live: <span id="connectionStatus">Connecting...</span></span>
+                    <span>Connection: <span id="connectionStatus">Connecting...</span></span>
                 </div>
                 <div class="status">
                     <span>Symbol: <span id="currentSymbol">1HZ10V</span></span>
                 </div>
                 <div class="status">
-                    <span>Tick Speed: <span id="currentTickSpeed">1s</span></span>
+                    <span>Timeframe: <span id="currentTimeframe">1M</span></span>
+                </div>
+                <div class="status">
+                    <span>Candles: <span id="candleCount">0</span></span>
                 </div>
             </div>
         </div>
@@ -570,37 +736,20 @@
         <div class="dashboard">
             <div class="main-area">
                 <div class="chart-area">
-                    <!-- Controls Row -->
-                    <div class="controls-row">
-                        <!-- Left: Timeframes -->
-                        <div class="left-controls">
-                            <div class="chart-controls">
-                                <button class="timeframe-btn active" onclick="setChartType('line')">Line</button>
-                                <button class="timeframe-btn" onclick="setChartType('candle')">Candles</button>
-                                <button class="timeframe-btn" onclick="setChartType('area')">Area</button>
-                                <button class="timeframe-btn" onclick="setChartType('bar')">Bars</button>
-                            </div>
-                        </div>
-
-                        <!-- Right: Tick Detector -->
-                        <div class="right-controls">
-                            <div class="tick-detector">
-                                <div class="tick-indicator tick-neutral-indicator" id="tickIndicator">
-                                    -
-                                </div>
-                                <div style="font-size: 12px;">
-                                    <div>Last: <span id="lastTickValue">0.00</span></div>
-                                    <div>Change: <span id="tickChange">0.00%</span></div>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Chart Controls -->
+                    <div class="chart-controls">
+                        <button class="timeframe-btn active" onclick="setTimeframe(60)">1M</button>
+                        <button class="timeframe-btn" onclick="setTimeframe(300)">5M</button>
+                        <button class="timeframe-btn" onclick="setTimeframe(900)">15M</button>
+                        <button class="timeframe-btn" onclick="setTimeframe(1800)">30M</button>
+                        <button class="timeframe-btn" onclick="setTimeframe(3600)">1H</button>
+                        <button class="timeframe-btn" onclick="setTimeframe(86400)">1D</button>
                     </div>
 
                     <!-- Chart Header -->
                     <div class="chart-header">
                         <div class="symbol-info">
-                            <!-- Symbol Dropdown -->
-                            <div class="select-wrapper" style="width: 280px;">
+                            <div class="select-wrapper" style="width: 300px;">
                                 <select id="symbolSelect" onchange="changeSymbol(this.value)">
                                     <option value="1HZ10V">Volatility 10 (1s) Index</option>
                                     <option value="R_10">Volatility 10 Index</option>
@@ -618,63 +767,79 @@
                                 </select>
                             </div>
                             <span id="symbolTypeBadge" class="badge badge-fast">1s</span>
-                            <div class="price-display price-up" id="currentPrice">--.--</div>
+                            <div class="price-display price-neutral" id="currentPrice">--.--</div>
                             <div class="price-change" id="priceChange">+0.00 (0.00%)</div>
+                        </div>
+                        
+                        <!-- Tick Detector -->
+                        <div class="tick-detector">
+                            <div class="tick-indicator tick-neutral-indicator" id="tickIndicator">
+                                -
+                            </div>
+                            <div style="min-width: 120px;">
+                                <div style="font-size: 12px; color: var(--muted-foreground); margin-bottom: 4px;">Last Price</div>
+                                <div style="font-size: 20px; font-weight: 700;" id="lastTickValue">--.--</div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Chart Container -->
                     <div class="chart-container">
-                        <canvas id="priceChart"></canvas>
+                        <canvas id="candlestickChart"></canvas>
+                        <div class="loading-spinner" id="chartLoading"></div>
+                    </div>
+
+                    <!-- Volume Panel -->
+                    <div class="volume-panel">
+                        <canvas id="volumeChart"></canvas>
                     </div>
 
                     <!-- Candle Info -->
-                    <div class="candle-info">
-                        <div class="candle-item">
+                    <div class="candle-info-grid">
+                        <div class="candle-info-card">
                             <div class="candle-label">Open</div>
                             <div class="candle-value" id="candleOpen">--.--</div>
                         </div>
-                        <div class="candle-item">
+                        <div class="candle-info-card">
                             <div class="candle-label">High</div>
-                            <div class="candle-value" id="candleHigh">--.--</div>
+                            <div class="candle-value bullish" id="candleHigh">--.--</div>
                         </div>
-                        <div class="candle-item">
+                        <div class="candle-info-card">
                             <div class="candle-label">Low</div>
-                            <div class="candle-value" id="candleLow">--.--</div>
+                            <div class="candle-value bearish" id="candleLow">--.--</div>
                         </div>
-                        <div class="candle-item">
+                        <div class="candle-info-card">
                             <div class="candle-label">Close</div>
                             <div class="candle-value" id="candleClose">--.--</div>
                         </div>
                     </div>
 
-                    <!-- Tick History Panel -->
+                    <!-- Tick History -->
                     <div class="tick-history">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <h3 style="font-size: 14px; margin: 0;">Tick History (Last 20 Ticks)</h3>
+                            <h3 style="font-size: 14px; margin: 0; display: flex; align-items: center; gap: 8px;">
+                                <span>📊</span> Recent Ticks (Last 20)
+                            </h3>
                             <div class="tick-stats">
-                                <div class="tick-count rise">R: <span id="riseCount">0</span></div>
-                                <div class="tick-count fall">F: <span id="fallCount">0</span></div>
+                                <div class="tick-count rise">Rise: <span id="riseCount">0</span></div>
+                                <div class="tick-count fall">Fall: <span id="fallCount">0</span></div>
                             </div>
                         </div>
                         <div class="tick-pattern" id="tickPattern">
                             <!-- Generated by JavaScript -->
                         </div>
-                        <div style="margin-top: 10px; font-size: 12px; color: var(--muted-foreground);">
-                            R = Rise, F = Fall | Last update: <span id="lastTickTime">--:--:--</span>
+                        <div style="margin-top: 10px; font-size: 12px; color: var(--muted-foreground); text-align: center;">
+                            Last tick: <span id="lastTickTime">--:--:--</span> | 
+                            <span id="tickFrequency">0</span> ticks/sec
                         </div>
-                    </div>
-
-                    <div class="instructions">
-                        Real-time synthetic indices data from Deriv WebSocket API
                     </div>
                 </div>
             </div>
 
             <div class="sidebar">
-                <!-- Symbol Selector Panel -->
+                <!-- Symbol Selection -->
                 <div class="panel">
-                    <h3>Select Symbol</h3>
+                    <h3>Market Selection</h3>
                     <div class="symbol-list">
                         <div class="select-wrapper">
                             <select id="sidebarSymbolSelect" onchange="changeSymbol(this.value)">
@@ -693,9 +858,58 @@
                                 <option value="R_100">Volatility 100 Index</option>
                             </select>
                         </div>
-                        <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
-                            <span id="selectedSymbolName" style="font-size: 12px; color: var(--muted-foreground);">Volatility 10 (1s) Index</span>
+                        <div style="margin-top: 15px; display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <div style="font-size: 12px; color: var(--muted-foreground);">Selected</div>
+                                <div style="font-size: 16px; font-weight: 600; margin-top: 4px;" id="selectedSymbolName">Volatility 10 (1s) Index</div>
+                            </div>
                             <span id="symbolTypeBadge2" class="badge badge-fast">1s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technical Indicators -->
+                <div class="panel">
+                    <h3>Technical Indicators</h3>
+                    <div class="indicators-panel">
+                        <div class="indicator-item">
+                            <span class="indicator-name">RSI (14)</span>
+                            <span class="indicator-value" id="rsiValue">--</span>
+                        </div>
+                        <div class="indicator-item">
+                            <span class="indicator-name">MACD</span>
+                            <span class="indicator-value" id="macdValue">--</span>
+                        </div>
+                        <div class="indicator-item">
+                            <span class="indicator-name">Bollinger Band</span>
+                            <span class="indicator-value" id="bbValue">--</span>
+                        </div>
+                        <div class="indicator-item">
+                            <span class="indicator-name">Volume</span>
+                            <span class="indicator-value" id="volumeValue">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Market Statistics -->
+                <div class="panel">
+                    <h3>Market Statistics</h3>
+                    <div style="margin-top: 20px;">
+                        <div class="indicator-item">
+                            <span class="indicator-name">24h High</span>
+                            <span class="indicator-value positive" id="marketHigh">--.--</span>
+                        </div>
+                        <div class="indicator-item">
+                            <span class="indicator-name">24h Low</span>
+                            <span class="indicator-value negative" id="marketLow">--.--</span>
+                        </div>
+                        <div class="indicator-item">
+                            <span class="indicator-name">Average Price</span>
+                            <span class="indicator-value" id="averagePrice">--.--</span>
+                        </div>
+                        <div class="indicator-item">
+                            <span class="indicator-name">Volatility</span>
+                            <span class="indicator-value" id="volatility">--.--%</span>
                         </div>
                     </div>
                 </div>
@@ -703,41 +917,26 @@
                 <!-- Connection Status -->
                 <div class="panel">
                     <h3>Connection Status</h3>
-                    <div style="margin-top: 10px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px;">
+                    <div style="margin-top: 20px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px;">
                             <span>Status:</span>
-                            <span id="connectionStatusText" style="color: #10b981; font-weight: 500;">Connected</span>
+                            <span id="connectionStatusText" style="color: #10b981; font-weight: 600;">Connected</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px;">
                             <span>Last Update:</span>
                             <span id="lastUpdate">--:--:--</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px;">
-                            <span>Subscribed:</span>
-                            <span id="subscribedSymbols">1HZ10V</span>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px;">
+                            <span>Subscribed Symbol:</span>
+                            <span id="subscribedSymbols" style="font-weight: 600;">1HZ10V</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px;">
                             <span>Ticks Received:</span>
-                            <span id="ticksReceived">0</span>
+                            <span id="ticksReceived" style="font-weight: 600;">0</span>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Market Data -->
-                <div class="panel">
-                    <h3>Market Data</h3>
-                    <div style="margin-top: 10px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px;">
-                            <span>Current Price:</span>
-                            <span id="marketCurrentPrice">--.--</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px;">
-                            <span>24h High:</span>
-                            <span id="marketHigh">--.--</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                            <span>24h Low:</span>
-                            <span id="marketLow">--.--</span>
+                        <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                            <span>Candles Generated:</span>
+                            <span id="candlesGenerated" style="font-weight: 600;">0</span>
                         </div>
                     </div>
                 </div>
@@ -745,17 +944,14 @@
                 <!-- Chart Controls -->
                 <div class="panel">
                     <h3>Chart Controls</h3>
-                    <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="margin-top: 20px;">
                         <div class="chart-toolbar">
-                            <button class="toolbar-btn active" onclick="setChartType('line')">Line</button>
-                            <button class="toolbar-btn" onclick="setChartType('candle')">Candle</button>
-                            <button class="toolbar-btn" onclick="setChartType('area')">Area</button>
+                            <button class="toolbar-btn active" onclick="toggleVolume(true)">Show Volume</button>
+                            <button class="toolbar-btn" onclick="toggleGrid()">Toggle Grid</button>
+                            <button class="toolbar-btn" onclick="resetChart()">Reset Chart</button>
                         </div>
-                        <button onclick="clearChart()" style="width: 100%; padding: 10px; background: var(--secondary); color: var(--foreground); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
-                            Clear Chart
-                        </button>
-                        <button onclick="downloadData()" style="width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer;">
-                            Download Data
+                        <button onclick="downloadCandleData()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600; margin-top: 15px; transition: all 0.3s;">
+                            📥 Download Candle Data
                         </button>
                     </div>
                 </div>
@@ -771,9 +967,10 @@
         let socket = null;
         let isConnected = false;
         let activeSymbol = '1HZ10V';
-        let chartType = 'line';
-        let chart = null;
-        let chartData = [];
+        let activeTimeframe = 60; // 1 minute in seconds
+        let currentCandle = null;
+        let candles = [];
+        let maxCandles = 100;
         
         const SYNTHETIC_INDICES = {
             '1HZ10V': { name: 'Volatility 10 (1s) Index', type: '1s', basePrice: 35000 },
@@ -797,8 +994,13 @@
         let ticks = [];
         let currentPrice = 0;
         let previousPrice = 0;
-        let currentCandle = null;
         let currentTickSubscription = null;
+        let tickCount = 0;
+        let lastTickTime = 0;
+        let showVolume = true;
+        let showGrid = true;
+        let chart = null;
+        let volumeChart = null;
 
         // ======================
         // THEME MANAGEMENT
@@ -829,319 +1031,284 @@
             });
         }
 
+        function updateChartTheme() {
+            if (chart) {
+                drawChart();
+            }
+            if (volumeChart) {
+                drawVolumeChart();
+            }
+        }
+
         // ======================
         // CHART INITIALIZATION
         // ======================
-        function initChart() {
-            const canvas = document.getElementById('priceChart');
-            if (!canvas) {
-                console.error('Canvas not found');
-                return;
-            }
+        function initCharts() {
+            initCandlestickChart();
+            initVolumeChart();
+        }
 
-            const ctx = canvas.getContext('2d');
+        function initCandlestickChart() {
+            const canvas = document.getElementById('candlestickChart');
+            if (!canvas) return;
             
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Set canvas size
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
             
-            // Draw initial chart
             drawChart();
         }
 
+        function initVolumeChart() {
+            const canvas = document.getElementById('volumeChart');
+            if (!canvas) return;
+            
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            drawVolumeChart();
+        }
+
         function drawChart() {
-            const canvas = document.getElementById('priceChart');
+            const canvas = document.getElementById('candlestickChart');
             const ctx = canvas.getContext('2d');
+            
+            if (!canvas || !ctx) return;
             
             // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            if (chartData.length === 0) {
-                drawNoData(ctx);
+            if (candles.length === 0) {
+                drawNoData(ctx, canvas);
                 return;
             }
             
-            // Calculate chart dimensions
-            const padding = 40;
-            const chartWidth = canvas.width - padding * 2;
-            const chartHeight = canvas.height - padding * 2;
+            // Calculate dimensions
+            const padding = {
+                top: 40,
+                right: 60,
+                bottom: 40,
+                left: 70
+            };
             
-            // Find min and max values
+            const chartWidth = canvas.width - padding.left - padding.right;
+            const chartHeight = canvas.height - padding.top - padding.bottom;
+            
+            // Find min/max prices
             let minPrice = Infinity;
             let maxPrice = -Infinity;
+            let minTime = Infinity;
+            let maxTime = -Infinity;
             
-            chartData.forEach(point => {
-                if (chartType === 'candle' && point.candle) {
-                    minPrice = Math.min(minPrice, point.candle.low);
-                    maxPrice = Math.max(maxPrice, point.candle.high);
-                } else {
-                    minPrice = Math.min(minPrice, point.price);
-                    maxPrice = Math.max(maxPrice, point.price);
-                }
+            candles.forEach(candle => {
+                minPrice = Math.min(minPrice, candle.low);
+                maxPrice = Math.max(maxPrice, candle.high);
+                minTime = Math.min(minTime, candle.time);
+                maxTime = Math.max(maxTime, candle.time);
             });
+            
+            // Add current candle if exists
+            if (currentCandle) {
+                minPrice = Math.min(minPrice, currentCandle.low);
+                maxPrice = Math.max(maxPrice, currentCandle.high);
+                maxTime = Math.max(maxTime, currentCandle.time);
+            }
             
             // Add some padding to price range
             const priceRange = maxPrice - minPrice;
-            minPrice -= priceRange * 0.1;
-            maxPrice += priceRange * 0.1;
+            minPrice -= priceRange * 0.05;
+            maxPrice += priceRange * 0.05;
             
             // Draw grid
-            drawGrid(ctx, padding, chartWidth, chartHeight);
-            
-            // Draw price labels
-            drawPriceLabels(ctx, padding, chartHeight, minPrice, maxPrice);
-            
-            // Draw time labels
-            drawTimeLabels(ctx, padding, chartWidth, chartHeight);
-            
-            // Draw chart based on type
-            switch(chartType) {
-                case 'line':
-                    drawLineChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
-                    break;
-                case 'candle':
-                    drawCandleChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
-                    break;
-                case 'area':
-                    drawAreaChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
-                    break;
-                case 'bar':
-                    drawBarChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
-                    break;
+            if (showGrid) {
+                drawGrid(ctx, padding, chartWidth, chartHeight);
             }
             
+            // Draw axes
+            drawAxes(ctx, padding, chartWidth, chartHeight);
+            
+            // Draw price labels
+            drawPriceLabels(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
+            
+            // Draw time labels
+            drawTimeLabels(ctx, padding, chartWidth, chartHeight, minTime, maxTime);
+            
+            // Draw candlesticks
+            const allCandles = [...candles];
+            if (currentCandle) {
+                allCandles.push(currentCandle);
+            }
+            
+            drawCandlesticks(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice, minTime, maxTime, allCandles);
+            
             // Draw current price line
-            drawCurrentPriceLine(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
+            if (currentPrice > 0) {
+                drawCurrentPriceLine(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice);
+            }
+            
+            // Draw chart title
+            drawChartTitle(ctx, canvas);
         }
 
         function drawGrid(ctx, padding, chartWidth, chartHeight) {
-            ctx.strokeStyle = document.body.classList.contains('light-mode') ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)';
+            ctx.strokeStyle = document.body.classList.contains('light-mode') ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
             ctx.lineWidth = 1;
             
             // Vertical grid lines
             for (let i = 0; i <= 10; i++) {
-                const x = padding + (i * chartWidth / 10);
+                const x = padding.left + (i * chartWidth / 10);
                 ctx.beginPath();
-                ctx.moveTo(x, padding);
-                ctx.lineTo(x, padding + chartHeight);
+                ctx.moveTo(x, padding.top);
+                ctx.lineTo(x, padding.top + chartHeight);
                 ctx.stroke();
             }
             
             // Horizontal grid lines
             for (let i = 0; i <= 10; i++) {
-                const y = padding + (i * chartHeight / 10);
+                const y = padding.top + (i * chartHeight / 10);
                 ctx.beginPath();
-                ctx.moveTo(padding, y);
-                ctx.lineTo(padding + chartWidth, y);
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + chartWidth, y);
                 ctx.stroke();
             }
-            
-            // Chart border
-            ctx.strokeStyle = document.body.classList.contains('light-mode') ? '#cbd5e1' : 'rgba(255, 255, 255, 0.2)';
+        }
+
+        function drawAxes(ctx, padding, chartWidth, chartHeight) {
+            ctx.strokeStyle = document.body.classList.contains('light-mode') ? '#000' : '#fff';
             ctx.lineWidth = 2;
-            ctx.strokeRect(padding, padding, chartWidth, chartHeight);
-        }
-
-        function drawPriceLabels(ctx, padding, chartHeight, minPrice, maxPrice) {
-            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af';
-            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-            ctx.textAlign = 'right';
             
-            for (let i = 0; i <= 10; i++) {
-                const price = maxPrice - ((maxPrice - minPrice) * i / 10);
-                const y = padding + (i * chartHeight / 10);
-                ctx.fillText(price.toFixed(2), padding - 5, y + 4);
-            }
-        }
-
-        function drawTimeLabels(ctx, padding, chartWidth, chartHeight) {
-            if (chartData.length === 0) return;
-            
-            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af';
-            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-            ctx.textAlign = 'center';
-            
-            const timesToShow = 5;
-            const interval = Math.floor(chartData.length / timesToShow);
-            
-            for (let i = 0; i < timesToShow; i++) {
-                const dataIndex = Math.min(i * interval, chartData.length - 1);
-                const x = padding + (dataIndex * chartWidth / (chartData.length - 1));
-                const time = chartData[dataIndex].time;
-                
-                const date = new Date(time);
-                const timeString = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-                
-                ctx.fillText(timeString, x, padding + chartHeight + 20);
-            }
-        }
-
-        function drawLineChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
-            if (chartData.length < 2) return;
-            
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
+            // Y-axis
             ctx.beginPath();
-            
-            chartData.forEach((point, index) => {
-                const x = padding + (index * chartWidth / (chartData.length - 1));
-                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
-                
-                if (index === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            });
-            
+            ctx.moveTo(padding.left, padding.top);
+            ctx.lineTo(padding.left, padding.top + chartHeight);
             ctx.stroke();
             
-            // Draw data points
-            ctx.fillStyle = '#3b82f6';
-            chartData.forEach((point, index) => {
-                const x = padding + (index * chartWidth / (chartData.length - 1));
-                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
-                
-                ctx.beginPath();
-                ctx.arc(x, y, 3, 0, Math.PI * 2);
-                ctx.fill();
-            });
+            // X-axis
+            ctx.beginPath();
+            ctx.moveTo(padding.left, padding.top + chartHeight);
+            ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+            ctx.stroke();
         }
 
-        function drawCandleChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
-            if (chartData.length === 0) return;
+        function drawPriceLabels(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#666' : '#aaa';
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
             
-            const candleWidth = Math.min(10, chartWidth / chartData.length * 0.8);
-            
-            chartData.forEach((point, index) => {
-                if (!point.candle) return;
+            // Draw price levels
+            const priceLevels = 8;
+            for (let i = 0; i <= priceLevels; i++) {
+                const price = maxPrice - ((maxPrice - minPrice) * i / priceLevels);
+                const y = padding.top + (i * chartHeight / priceLevels);
                 
-                const x = padding + (index * chartWidth / (chartData.length - 1));
-                const candle = point.candle;
+                ctx.fillText(price.toFixed(2), padding.left - 10, y);
+                
+                // Draw horizontal line
+                ctx.strokeStyle = document.body.classList.contains('light-mode') ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + chartWidth, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawTimeLabels(ctx, padding, chartWidth, chartHeight, minTime, maxTime) {
+            if (candles.length === 0) return;
+            
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#666' : '#aaa';
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            
+            // Draw time labels at intervals
+            const labelCount = Math.min(8, candles.length);
+            const interval = Math.max(1, Math.floor(candles.length / labelCount));
+            
+            for (let i = 0; i < candles.length; i += interval) {
+                const candle = candles[i];
+                const x = padding.left + (i * chartWidth / (candles.length - 1));
+                
+                const date = new Date(candle.time);
+                let timeString;
+                
+                if (activeTimeframe <= 3600) { // Intraday
+                    timeString = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                } else { // Daily or higher
+                    timeString = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+                }
+                
+                ctx.fillText(timeString, x, padding.top + chartHeight + 10);
+            }
+        }
+
+        function drawCandlesticks(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice, minTime, maxTime, allCandles) {
+            if (allCandles.length === 0) return;
+            
+            const candleWidth = Math.max(2, Math.min(20, chartWidth / allCandles.length * 0.7));
+            
+            for (let i = 0; i < allCandles.length; i++) {
+                const candle = allCandles[i];
+                const isCurrent = (i === allCandles.length - 1 && candle === currentCandle);
+                
+                // Calculate position
+                const x = padding.left + (i * chartWidth / allCandles.length) + (chartWidth / allCandles.length / 2);
                 
                 // Calculate Y positions
-                const openY = padding + chartHeight - ((candle.open - minPrice) / (maxPrice - minPrice)) * chartHeight;
-                const closeY = padding + chartHeight - ((candle.close - minPrice) / (maxPrice - minPrice)) * chartHeight;
-                const highY = padding + chartHeight - ((candle.high - minPrice) / (maxPrice - minPrice)) * chartHeight;
-                const lowY = padding + chartHeight - ((candle.low - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                const openY = padding.top + chartHeight - ((candle.open - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                const closeY = padding.top + chartHeight - ((candle.close - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                const highY = padding.top + chartHeight - ((candle.high - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                const lowY = padding.top + chartHeight - ((candle.low - minPrice) / (maxPrice - minPrice)) * chartHeight;
                 
-                // Determine color
+                // Determine if bullish or bearish
                 const isBullish = candle.close > candle.open;
-                ctx.fillStyle = isBullish ? '#10b981' : '#ef4444';
-                ctx.strokeStyle = isBullish ? '#10b981' : '#ef4444';
                 
-                // Draw wick
+                // Set colors
+                const bodyColor = isBullish ? '#10b981' : '#ef4444';
+                const wickColor = isBullish ? '#10b981' : '#ef4444';
+                const bodyAlpha = isCurrent ? 0.3 : 0.8;
+                
+                // Draw wick (high-low line)
+                ctx.strokeStyle = wickColor;
                 ctx.lineWidth = 1;
                 ctx.beginPath();
                 ctx.moveTo(x, highY);
                 ctx.lineTo(x, lowY);
                 ctx.stroke();
                 
-                // Draw candle body
-                ctx.fillRect(
-                    x - candleWidth / 2,
-                    Math.min(openY, closeY),
-                    candleWidth,
-                    Math.abs(closeY - openY)
-                );
+                // Draw body (open-close rectangle)
+                const bodyHeight = Math.max(1, Math.abs(closeY - openY));
+                const bodyY = Math.min(openY, closeY);
                 
-                // Draw border
-                ctx.strokeRect(
-                    x - candleWidth / 2,
-                    Math.min(openY, closeY),
-                    candleWidth,
-                    Math.abs(closeY - openY)
-                );
-            });
-        }
-
-        function drawAreaChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
-            if (chartData.length < 2) return;
-            
-            // Create gradient
-            const gradient = ctx.createLinearGradient(0, padding, 0, padding + chartHeight);
-            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
-            gradient.addColorStop(1, 'rgba(59, 130, 246, 0.1)');
-            
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            
-            // Draw top line
-            chartData.forEach((point, index) => {
-                const x = padding + (index * chartWidth / (chartData.length - 1));
-                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
+                ctx.fillStyle = bodyColor;
+                ctx.fillRect(x - candleWidth / 2, bodyY, candleWidth, bodyHeight);
                 
-                if (index === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
+                // Draw body border
+                ctx.strokeStyle = bodyColor;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x - candleWidth / 2, bodyY, candleWidth, bodyHeight);
+                
+                // Highlight current candle
+                if (isCurrent) {
+                    ctx.strokeStyle = isBullish ? '#10b981' : '#ef4444';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 3]);
+                    ctx.strokeRect(x - candleWidth / 2 - 2, bodyY - 2, candleWidth + 4, bodyHeight + 4);
+                    ctx.setLineDash([]);
                 }
-            });
-            
-            // Complete the area
-            const lastX = padding + ((chartData.length - 1) * chartWidth / (chartData.length - 1));
-            ctx.lineTo(lastX, padding + chartHeight);
-            ctx.lineTo(padding, padding + chartHeight);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Draw line on top
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            
-            chartData.forEach((point, index) => {
-                const x = padding + (index * chartWidth / (chartData.length - 1));
-                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
-                
-                if (index === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            });
-            
-            ctx.stroke();
-        }
-
-        function drawBarChart(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
-            if (chartData.length === 0) return;
-            
-            const barWidth = Math.min(20, chartWidth / chartData.length * 0.6);
-            
-            chartData.forEach((point, index) => {
-                const x = padding + (index * chartWidth / (chartData.length - 1));
-                const y = padding + chartHeight - ((point.price - minPrice) / (maxPrice - minPrice)) * chartHeight;
-                
-                // Determine color based on price change
-                const prevPrice = index > 0 ? chartData[index - 1].price : point.price;
-                const isBullish = point.price > prevPrice;
-                ctx.fillStyle = isBullish ? '#10b981' : '#ef4444';
-                
-                ctx.fillRect(
-                    x - barWidth / 2,
-                    y,
-                    barWidth,
-                    padding + chartHeight - y
-                );
-            });
+            }
         }
 
         function drawCurrentPriceLine(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice) {
-            if (currentPrice === 0) return;
-            
-            const y = padding + chartHeight - ((currentPrice - minPrice) / (maxPrice - minPrice)) * chartHeight;
+            const y = padding.top + chartHeight - ((currentPrice - minPrice) / (maxPrice - minPrice)) * chartHeight;
             
             ctx.strokeStyle = currentPrice > previousPrice ? '#10b981' : '#ef4444';
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 5]);
             
             ctx.beginPath();
-            ctx.moveTo(padding, y);
-            ctx.lineTo(padding + chartWidth, y);
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(padding.left + chartWidth, y);
             ctx.stroke();
             
             ctx.setLineDash([]);
@@ -1149,72 +1316,273 @@
             // Draw price label
             ctx.fillStyle = currentPrice > previousPrice ? '#10b981' : '#ef4444';
             ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText(currentPrice.toFixed(2), padding + chartWidth + 5, y + 4);
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(currentPrice.toFixed(2), padding.left + chartWidth + 5, y);
         }
 
-        function drawNoData(ctx) {
-            const canvas = document.getElementById('priceChart');
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
+        function drawChartTitle(ctx, canvas) {
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#333' : '#fff';
+            ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`${activeSymbol} - Candlestick Chart`, 20, 15);
             
-            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#64748b' : '#9ca3af';
+            // Draw timeframe
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#666' : '#aaa';
+            ctx.fillText(`Timeframe: ${getTimeframeLabel(activeTimeframe)}`, 20, 35);
+        }
+
+        function drawNoData(ctx, canvas) {
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#999' : '#777';
             ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Waiting for data...', centerX, centerY);
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Waiting for data...', canvas.width / 2, canvas.height / 2);
         }
 
-        function updateChartTheme() {
-            drawChart();
-        }
-
-        function setChartType(type) {
-            chartType = type;
+        function drawVolumeChart() {
+            if (!showVolume) return;
             
-            // Update button states
-            document.querySelectorAll('.timeframe-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.toolbar-btn').forEach(btn => btn.classList.remove('active'));
+            const canvas = document.getElementById('volumeChart');
+            const ctx = canvas.getContext('2d');
             
-            event.target.classList.add('active');
+            if (!canvas || !ctx) return;
             
-            drawChart();
-        }
-
-        function clearChart() {
-            chartData = [];
-            ticks = [];
-            currentPrice = 0;
-            previousPrice = 0;
-            currentCandle = null;
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            updateTickHistory();
-            drawChart();
-            console.log('Chart cleared');
-        }
-
-        function downloadData() {
-            if (chartData.length === 0) {
-                alert('No data to download');
-                return;
+            if (candles.length === 0) return;
+            
+            // Calculate dimensions
+            const padding = { left: 10, right: 10, top: 5, bottom: 5 };
+            const chartWidth = canvas.width - padding.left - padding.right;
+            const chartHeight = canvas.height - padding.top - padding.bottom;
+            
+            // Find max volume
+            let maxVolume = 0;
+            candles.forEach(candle => {
+                if (candle.volume > maxVolume) maxVolume = candle.volume;
+            });
+            
+            // Draw volume bars
+            const barWidth = Math.max(1, chartWidth / candles.length * 0.8);
+            
+            for (let i = 0; i < candles.length; i++) {
+                const candle = candles[i];
+                const isBullish = candle.close > candle.open;
+                
+                const x = padding.left + (i * chartWidth / candles.length);
+                const barHeight = (candle.volume / maxVolume) * chartHeight;
+                const y = padding.top + chartHeight - barHeight;
+                
+                // Set color based on candle type
+                ctx.fillStyle = isBullish ? 'rgba(16, 185, 129, 0.6)' : 'rgba(239, 68, 68, 0.6)';
+                ctx.fillRect(x, y, barWidth, barHeight);
+                
+                // Draw border
+                ctx.strokeStyle = isBullish ? '#10b981' : '#ef4444';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x, y, barWidth, barHeight);
             }
             
-            const csvContent = "data:text/csv;charset=utf-8," 
-                + ["Time,Price,Open,High,Low,Close"].join(",") + "\n"
-                + chartData.map(point => {
-                    const time = new Date(point.time).toISOString();
-                    if (point.candle) {
-                        return `${time},${point.price},${point.candle.open},${point.candle.high},${point.candle.low},${point.candle.close}`;
-                    }
-                    return `${time},${point.price},${point.price},${point.price},${point.price},${point.price}`;
-                }).join("\n");
+            // Draw volume label
+            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#666' : '#aaa';
+            ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('Volume', 10, 5);
+        }
+
+        function getTimeframeLabel(seconds) {
+            const timeframes = {
+                1: '1s',
+                60: '1m',
+                300: '5m',
+                900: '15m',
+                1800: '30m',
+                3600: '1h',
+                86400: '1D'
+            };
+            return timeframes[seconds] || `${seconds}s`;
+        }
+
+        // ======================
+        // CANDLE MANAGEMENT
+        // ======================
+        function createNewCandle(tickPrice, tickTime) {
+            const candleStart = Math.floor(tickTime / (activeTimeframe * 1000)) * (activeTimeframe * 1000);
             
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `deriv_data_${activeSymbol}_${new Date().toISOString().split('T')[0]}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            currentCandle = {
+                time: candleStart,
+                open: tickPrice,
+                high: tickPrice,
+                low: tickPrice,
+                close: tickPrice,
+                volume: 1,
+                isComplete: false
+            };
+            
+            updateCandleDisplay();
+        }
+
+        function updateCurrentCandle(tickPrice) {
+            if (!currentCandle) return;
+            
+            currentCandle.high = Math.max(currentCandle.high, tickPrice);
+            currentCandle.low = Math.min(currentCandle.low, tickPrice);
+            currentCandle.close = tickPrice;
+            currentCandle.volume += 1;
+            
+            // Check if candle should be completed
+            const currentTime = Date.now();
+            const candleEnd = currentCandle.time + (activeTimeframe * 1000);
+            
+            if (currentTime >= candleEnd) {
+                completeCurrentCandle();
+            }
+            
+            updateCandleDisplay();
+            drawChart();
+            drawVolumeChart();
+        }
+
+        function completeCurrentCandle() {
+            if (!currentCandle || currentCandle.isComplete) return;
+            
+            currentCandle.isComplete = true;
+            candles.push({...currentCandle});
+            
+            // Keep only last maxCandles
+            if (candles.length > maxCandles) {
+                candles.shift();
+            }
+            
+            // Update candle count
+            document.getElementById('candleCount').textContent = candles.length;
+            document.getElementById('candlesGenerated').textContent = candles.length;
+            
+            // Reset current candle
+            currentCandle = null;
+            
+            // Update technical indicators
+            updateTechnicalIndicators();
+        }
+
+        // ======================
+        // TECHNICAL INDICATORS
+        // ======================
+        function updateTechnicalIndicators() {
+            if (candles.length < 14) return;
+            
+            // Calculate RSI
+            const rsi = calculateRSI(candles.slice(-14));
+            document.getElementById('rsiValue').textContent = rsi.toFixed(2);
+            document.getElementById('rsiValue').className = `indicator-value ${rsi > 70 ? 'negative' : rsi < 30 ? 'positive' : ''}`;
+            
+            // Calculate MACD
+            const macd = calculateMACD(candles);
+            document.getElementById('macdValue').textContent = macd.toFixed(2);
+            document.getElementById('macdValue').className = `indicator-value ${macd > 0 ? 'positive' : 'negative'}`;
+            
+            // Calculate Bollinger Bands
+            const bb = calculateBollingerBands(candles);
+            document.getElementById('bbValue').textContent = bb.toFixed(2);
+            
+            // Calculate average price
+            const avgPrice = calculateAveragePrice(candles);
+            document.getElementById('averagePrice').textContent = avgPrice.toFixed(2);
+            
+            // Calculate volatility
+            const volatility = calculateVolatility(candles);
+            document.getElementById('volatility').textContent = volatility.toFixed(2) + '%';
+            
+            // Update volume
+            const totalVolume = candles.reduce((sum, candle) => sum + candle.volume, 0);
+            document.getElementById('volumeValue').textContent = totalVolume.toLocaleString();
+        }
+
+        function calculateRSI(candleData) {
+            if (candleData.length < 14) return 50;
+            
+            let gains = 0;
+            let losses = 0;
+            
+            for (let i = 1; i < candleData.length; i++) {
+                const change = candleData[i].close - candleData[i-1].close;
+                if (change > 0) {
+                    gains += change;
+                } else {
+                    losses -= change;
+                }
+            }
+            
+            const avgGain = gains / 14;
+            const avgLoss = losses / 14;
+            
+            if (avgLoss === 0) return 100;
+            
+            const rs = avgGain / avgLoss;
+            return 100 - (100 / (1 + rs));
+        }
+
+        function calculateMACD(candleData) {
+            if (candleData.length < 26) return 0;
+            
+            const ema12 = calculateEMA(candleData, 12);
+            const ema26 = calculateEMA(candleData, 26);
+            
+            return ema12 - ema26;
+        }
+
+        function calculateEMA(candleData, period) {
+            if (candleData.length < period) return 0;
+            
+            const recentCandles = candleData.slice(-period);
+            const multiplier = 2 / (period + 1);
+            
+            let ema = recentCandles[0].close;
+            for (let i = 1; i < recentCandles.length; i++) {
+                ema = (recentCandles[i].close - ema) * multiplier + ema;
+            }
+            
+            return ema;
+        }
+
+        function calculateBollingerBands(candleData) {
+            if (candleData.length < 20) return 0;
+            
+            const recentCandles = candleData.slice(-20);
+            const closes = recentCandles.map(c => c.close);
+            const mean = closes.reduce((a, b) => a + b) / closes.length;
+            const variance = closes.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / closes.length;
+            const stdDev = Math.sqrt(variance);
+            
+            return (recentCandles[recentCandles.length - 1].close - mean) / (2 * stdDev);
+        }
+
+        function calculateAveragePrice(candleData) {
+            if (candleData.length === 0) return 0;
+            
+            const sum = candleData.reduce((total, candle) => total + candle.close, 0);
+            return sum / candleData.length;
+        }
+
+        function calculateVolatility(candleData) {
+            if (candleData.length < 2) return 0;
+            
+            const returns = [];
+            for (let i = 1; i < candleData.length; i++) {
+                const returnValue = (candleData[i].close - candleData[i-1].close) / candleData[i-1].close;
+                returns.push(returnValue);
+            }
+            
+            const meanReturn = returns.reduce((a, b) => a + b) / returns.length;
+            const variance = returns.reduce((a, b) => a + Math.pow(b - meanReturn, 2), 0) / returns.length;
+            const stdDev = Math.sqrt(variance);
+            
+            return stdDev * Math.sqrt(252) * 100; // Annualized volatility in percentage
         }
 
         // ======================
@@ -1291,21 +1659,40 @@
             
             document.getElementById('subscribedSymbols').textContent = symbol;
             
-            // Also subscribe to OHLC data
-            const ohlcSubscribeMsg = {
-                ohlc: 1,
-                subscribe: 1
+            // Request historical candles
+            setTimeout(() => {
+                requestHistoricalCandles();
+            }, 1000);
+        }
+
+        function requestHistoricalCandles() {
+            if (!socket || socket.readyState !== WebSocket.OPEN) return;
+            
+            const request = {
+                ticks_history: activeSymbol,
+                end: 'latest',
+                count: maxCandles,
+                style: 'candles',
+                granularity: activeTimeframe,
+                subscribe: 0
             };
-            socket.send(JSON.stringify(ohlcSubscribeMsg));
+            
+            socket.send(JSON.stringify(request));
+            console.log(`Requested ${maxCandles} historical candles for ${activeSymbol}`);
         }
 
         function handleDerivMessage(data) {
             if (data.msg_type === 'tick') {
                 handleTickData(data.tick);
+            } else if (data.msg_type === 'candles') {
+                handleCandleData(data.candles);
             } else if (data.msg_type === 'ohlc') {
                 handleOHLCData(data.ohlc);
             } else if (data.error) {
                 console.warn('Deriv API Warning:', data.error?.message || 'API Error');
+                if (data.error.code === 'InputValidationFailed') {
+                    console.log('Symbol may not be available for this timeframe');
+                }
             }
         }
 
@@ -1314,6 +1701,13 @@
             
             previousPrice = currentPrice;
             currentPrice = parseFloat(tick.quote);
+            
+            // Initialize or update current candle
+            if (!currentCandle) {
+                createNewCandle(currentPrice, tick.epoch * 1000);
+            } else {
+                updateCurrentCandle(currentPrice);
+            }
             
             // Add to tick history
             ticks.unshift({
@@ -1327,25 +1721,22 @@
                 ticks.pop();
             }
             
-            // Add to chart data
+            // Update tick count and frequency
+            tickCount++;
             const now = Date.now();
-            chartData.push({
-                time: now,
-                price: currentPrice,
-                candle: null
-            });
-            
-            // Keep only last 100 data points
-            if (chartData.length > 100) {
-                chartData.shift();
+            if (lastTickTime > 0) {
+                const tickFrequency = Math.floor(1000 / (now - lastTickTime));
+                document.getElementById('tickFrequency').textContent = tickFrequency;
             }
+            lastTickTime = now;
             
             updatePriceDisplay();
             updateTickHistory();
             updateTickIndicator();
             updateLastUpdate();
+            updateMarketHighLow();
             
-            document.getElementById('ticksReceived').textContent = ticks.length;
+            document.getElementById('ticksReceived').textContent = tickCount;
             document.getElementById('lastTickValue').textContent = currentPrice.toFixed(2);
             
             // Update last tick time
@@ -1354,75 +1745,93 @@
                 tickTime.getHours().toString().padStart(2, '0') + ':' + 
                 tickTime.getMinutes().toString().padStart(2, '0') + ':' + 
                 tickTime.getSeconds().toString().padStart(2, '0');
+        }
+
+        function handleCandleData(candleData) {
+            if (!candleData || candleData.length === 0) return;
             
-            // Update market high/low
-            updateMarketHighLow();
+            console.log(`Received ${candleData.length} historical candles`);
             
-            // Update candle data
-            updateCandleData();
+            // Convert Deriv candles to our format
+            candles = candleData.map(candle => ({
+                time: candle.epoch * 1000,
+                open: parseFloat(candle.open),
+                high: parseFloat(candle.high),
+                low: parseFloat(candle.low),
+                close: parseFloat(candle.close),
+                volume: parseFloat(candle.volume) || Math.random() * 1000,
+                isComplete: true
+            }));
             
-            // Redraw chart
+            // Sort by time (ascending)
+            candles.sort((a, b) => a.time - b.time);
+            
+            document.getElementById('candleCount').textContent = candles.length;
+            document.getElementById('candlesGenerated').textContent = candles.length;
+            
+            // Hide loading spinner
+            document.getElementById('chartLoading').style.display = 'none';
+            
+            // Update chart
             drawChart();
+            drawVolumeChart();
+            updateTechnicalIndicators();
+            updateCandleDisplay();
         }
 
         function handleOHLCData(ohlc) {
             if (!ohlc) return;
             
-            // Update current candle
-            if (!currentCandle) {
-                currentCandle = {
-                    open: parseFloat(ohlc.open),
-                    high: parseFloat(ohlc.high),
-                    low: parseFloat(ohlc.low),
-                    close: parseFloat(ohlc.close),
-                    time: ohlc.open_time * 1000
-                };
+            // OHLC data for completed candles
+            const ohlcCandle = {
+                time: ohlc.open_time * 1000,
+                open: parseFloat(ohlc.open),
+                high: parseFloat(ohlc.high),
+                low: parseFloat(ohlc.low),
+                close: parseFloat(ohlc.close),
+                volume: parseFloat(ohlc.volume) || 0,
+                isComplete: true
+            };
+            
+            // Find and update existing candle
+            const existingIndex = candles.findIndex(c => c.time === ohlcCandle.time);
+            if (existingIndex !== -1) {
+                candles[existingIndex] = ohlcCandle;
             } else {
-                currentCandle.high = Math.max(currentCandle.high, parseFloat(ohlc.high));
-                currentCandle.low = Math.min(currentCandle.low, parseFloat(ohlc.low));
-                currentCandle.close = parseFloat(ohlc.close);
+                candles.push(ohlcCandle);
+                if (candles.length > maxCandles) {
+                    candles.shift();
+                }
             }
             
-            // Update candle display
-            updateCandleDisplay();
-        }
-
-        function updateCandleData() {
-            if (!currentCandle) {
-                currentCandle = {
-                    open: currentPrice,
-                    high: currentPrice,
-                    low: currentPrice,
-                    close: currentPrice,
-                    time: Date.now()
-                };
-            } else {
-                currentCandle.high = Math.max(currentCandle.high, currentPrice);
-                currentCandle.low = Math.min(currentCandle.low, currentPrice);
-                currentCandle.close = currentPrice;
-            }
-            
-            // Update the last chart data point with candle info
-            if (chartData.length > 0) {
-                const lastPoint = chartData[chartData.length - 1];
-                lastPoint.candle = { ...currentCandle };
-            }
-            
-            updateCandleDisplay();
-        }
-
-        function updateCandleDisplay() {
-            if (currentCandle) {
-                document.getElementById('candleOpen').textContent = currentCandle.open.toFixed(2);
-                document.getElementById('candleHigh').textContent = currentCandle.high.toFixed(2);
-                document.getElementById('candleLow').textContent = currentCandle.low.toFixed(2);
-                document.getElementById('candleClose').textContent = currentCandle.close.toFixed(2);
-            }
+            // Update chart
+            drawChart();
+            drawVolumeChart();
+            updateTechnicalIndicators();
         }
 
         // ======================
         // UI CONTROLS
         // ======================
+        function setTimeframe(seconds) {
+            activeTimeframe = seconds;
+            
+            // Update button states
+            document.querySelectorAll('.timeframe-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('currentTimeframe').textContent = getTimeframeLabel(seconds);
+            
+            // Reset candles and request new data
+            candles = [];
+            currentCandle = null;
+            document.getElementById('chartLoading').style.display = 'block';
+            
+            if (isConnected) {
+                requestHistoricalCandles();
+            }
+        }
+
         function changeSymbol(symbol) {
             // Unsubscribe from current tick
             if (isConnected && currentTickSubscription) {
@@ -1437,22 +1846,78 @@
             
             updateSymbolUI();
             
-            // Clear data
+            // Reset data
             ticks = [];
-            chartData = [];
+            tickCount = 0;
+            candles = [];
+            currentCandle = null;
             currentPrice = 0;
             previousPrice = 0;
-            currentCandle = null;
+            
+            // Show loading spinner
+            document.getElementById('chartLoading').style.display = 'block';
             
             // Update displays
             updateTickHistory();
             updateCandleDisplay();
             drawChart();
+            drawVolumeChart();
             
             // Request new data
             if (isConnected) {
                 subscribeToSymbol(symbol);
             }
+        }
+
+        function toggleVolume(show) {
+            showVolume = show;
+            const btn = document.querySelector('.toolbar-btn:nth-child(1)');
+            if (show) {
+                btn.classList.add('active');
+                btn.textContent = 'Show Volume';
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = 'Hide Volume';
+            }
+            drawVolumeChart();
+        }
+
+        function toggleGrid() {
+            showGrid = !showGrid;
+            const btn = document.querySelector('.toolbar-btn:nth-child(2)');
+            btn.classList.toggle('active', showGrid);
+            drawChart();
+        }
+
+        function resetChart() {
+            candles = [];
+            currentCandle = null;
+            drawChart();
+            drawVolumeChart();
+            updateCandleDisplay();
+            console.log('Chart reset');
+        }
+
+        function downloadCandleData() {
+            if (candles.length === 0) {
+                alert('No candle data available to download');
+                return;
+            }
+            
+            const csvContent = "data:text/csv;charset=utf-8," 
+                + ["Time,Open,High,Low,Close,Volume"].join(",") + "\n"
+                + candles.map(candle => {
+                    const time = new Date(candle.time).toISOString();
+                    return `${time},${candle.open},${candle.high},${candle.low},${candle.close},${candle.volume}`;
+                }).join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `deriv_candles_${activeSymbol}_${getTimeframeLabel(activeTimeframe)}_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // ======================
@@ -1464,7 +1929,6 @@
             
             document.getElementById('currentSymbol').textContent = activeSymbol;
             document.getElementById('selectedSymbolName').textContent = symbolInfo.name;
-            document.getElementById('currentTickSpeed').textContent = symbolInfo.type === '1s' ? '1s' : 'Standard';
             
             const isFast = symbolInfo.type === '1s';
             const badgeClass = isFast ? 'badge-fast' : 'badge-standard';
@@ -1479,12 +1943,11 @@
         function updatePriceDisplay() {
             const priceElement = document.getElementById('currentPrice');
             const changeElement = document.getElementById('priceChange');
-            const marketPriceElement = document.getElementById('marketCurrentPrice');
-            const tickChangeElement = document.getElementById('tickChange');
+            const lastTickElement = document.getElementById('lastTickValue');
             
             if (currentPrice > 0) {
                 priceElement.textContent = currentPrice.toFixed(2);
-                marketPriceElement.textContent = currentPrice.toFixed(2);
+                lastTickElement.textContent = currentPrice.toFixed(2);
                 
                 if (previousPrice > 0) {
                     const change = currentPrice - previousPrice;
@@ -1492,26 +1955,41 @@
                     
                     const isPositive = change >= 0;
                     const changeText = `${isPositive ? '+' : ''}${change.toFixed(2)} (${isPositive ? '+' : ''}${changePercent.toFixed(2)}%)`;
-                    const tickChangeText = `${isPositive ? '+' : ''}${changePercent.toFixed(2)}%`;
                     
                     changeElement.textContent = changeText;
-                    tickChangeElement.textContent = tickChangeText;
-                    tickChangeElement.style.color = isPositive ? '#10b981' : '#ef4444';
-                    
                     changeElement.className = isPositive ? 'price-change price-up' : 'price-change price-down';
                     priceElement.className = isPositive ? 'price-display price-up' : 'price-display price-down';
+                    
+                    // Update last tick value color
+                    lastTickElement.style.color = isPositive ? '#10b981' : '#ef4444';
                 } else {
-                    priceElement.className = 'price-display price-up';
+                    priceElement.className = 'price-display price-neutral';
                     changeElement.textContent = '+0.00 (0.00%)';
-                    tickChangeElement.textContent = '0.00%';
-                    tickChangeElement.style.color = '#9ca3af';
                 }
             } else {
                 priceElement.textContent = '--.--';
-                marketPriceElement.textContent = '--.--';
+                lastTickElement.textContent = '--.--';
                 changeElement.textContent = '+0.00 (0.00%)';
-                tickChangeElement.textContent = '0.00%';
-                tickChangeElement.style.color = '#9ca3af';
+            }
+        }
+
+        function updateCandleDisplay() {
+            const candle = currentCandle || (candles.length > 0 ? candles[candles.length - 1] : null);
+            
+            if (candle) {
+                document.getElementById('candleOpen').textContent = candle.open.toFixed(2);
+                document.getElementById('candleHigh').textContent = candle.high.toFixed(2);
+                document.getElementById('candleLow').textContent = candle.low.toFixed(2);
+                document.getElementById('candleClose').textContent = candle.close.toFixed(2);
+                
+                // Color code values
+                document.getElementById('candleOpen').className = `candle-value ${candle.close > candle.open ? 'bullish' : 'bearish'}`;
+                document.getElementById('candleClose').className = `candle-value ${candle.close > candle.open ? 'bullish' : 'bearish'}`;
+            } else {
+                document.getElementById('candleOpen').textContent = '--.--';
+                document.getElementById('candleHigh').textContent = '--.--';
+                document.getElementById('candleLow').textContent = '--.--';
+                document.getElementById('candleClose').textContent = '--.--';
             }
         }
 
@@ -1534,7 +2012,7 @@
             const container = document.getElementById('tickPattern');
             
             if (ticks.length < 2) {
-                container.innerHTML = '<span style="color: var(--muted-foreground); font-size: 12px;">Waiting for ticks...</span>';
+                container.innerHTML = '<div style="color: var(--muted-foreground); font-size: 14px; text-align: center; width: 100%; padding: 20px;">Waiting for ticks...</div>';
                 document.getElementById('riseCount').textContent = '0';
                 document.getElementById('fallCount').textContent = '0';
                 return;
@@ -1553,10 +2031,10 @@
                 if (!current || !previous) continue;
                 
                 if (current.quote > previous.quote) {
-                    html = `<div class="tick-rise">R</div>` + html;
+                    html = `<div class="tick-rise">↑</div>` + html;
                     riseCount++;
                 } else if (current.quote < previous.quote) {
-                    html = `<div class="tick-fall">F</div>` + html;
+                    html = `<div class="tick-fall">↓</div>` + html;
                     fallCount++;
                 } else {
                     html = `<div class="tick-neutral">-</div>` + html;
@@ -1574,10 +2052,10 @@
             
             if (currentPrice > previousPrice) {
                 indicator.className = 'tick-indicator tick-rise-indicator tick-flash';
-                indicator.textContent = 'R';
+                indicator.textContent = '↑';
             } else if (currentPrice < previousPrice) {
                 indicator.className = 'tick-indicator tick-fall-indicator tick-flash';
-                indicator.textContent = 'F';
+                indicator.textContent = '↓';
             } else {
                 indicator.className = 'tick-indicator tick-neutral-indicator';
                 indicator.textContent = '-';
@@ -1613,7 +2091,7 @@
         // ======================
         function init() {
             initTheme();
-            initChart();
+            initCharts();
             connectToDeriv();
             
             updateSymbolUI();
@@ -1621,11 +2099,17 @@
             
             // Handle window resize
             window.addEventListener('resize', function() {
-                drawChart();
+                initCharts();
             });
             
-            // Update chart periodically
-            setInterval(drawChart, 1000);
+            // Update tick frequency periodically
+            setInterval(() => {
+                if (tickCount > 0) {
+                    const frequency = Math.floor(tickCount / 10);
+                    document.getElementById('tickFrequency').textContent = frequency;
+                    tickCount = 0;
+                }
+            }, 10000);
         }
 
         document.addEventListener('DOMContentLoaded', function() {
