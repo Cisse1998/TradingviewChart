@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚡ Deriv Digits Analysis Terminal + Bot XML</title>
+  <title>⚡ Deriv Digits Analysis + Live Trading Bot</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -47,6 +47,15 @@
       50% { opacity: 0.5; text-shadow: 0 0 12px rgb(var(--profit)); }
     }
     .font-mono { font-family: 'Menlo', 'Courier New', monospace; }
+    /* blink for trade notification */
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+    .animate-blink {
+      animation: blink 1s infinite;
+    }
   </style>
   <!-- React and Babel -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -56,7 +65,7 @@
 <body class="bg-background">
   <div id="root"></div>
 
-  <!-- Store the Blockly XML safely in a dedicated script tag (won't be parsed by Babel) -->
+  <!-- Store the Blockly XML safely (kept for reference) -->
   <script type="application/xml" id="bot-xml">
     <xml xmlns="https://developers.google.com/blockly/xml" is_dbot="true" collection="false">
       <variables>
@@ -287,7 +296,7 @@
       { value: "1HZ100V", label: "Volatility 100 (1s) Index" },
     ];
 
-    // ---------- websocket ----------
+    // ---------- websocket for ticks (public) ----------
     function connectDeriv() {
       let ws = null;
       let subscriptionId = null;
@@ -314,7 +323,7 @@
       return { subscribe, unsubscribe, disconnect };
     }
 
-    // ---------- analysis functions ----------
+    // ---------- analysis functions (unchanged) ----------
     function computeDigitFrequency(digits) {
       const total = digits.length;
       const counts = Array(10).fill(0);
@@ -356,7 +365,7 @@
       return { currentEvenStreak: curEven, currentOddStreak: curOdd, longestEvenStreak: maxEven, longestOddStreak: maxOdd, digitStreaks: Array.from({ length: 10 }, (_, i) => ({ digit: i, current: curDigit[i], longest: maxDigit[i] })) };
     }
 
-    // ---------- components ----------
+    // ---------- React components (AnalysisCard, DigitBar, etc.) ----------
     function AnalysisCard({ title, subtitle, children }) {
       return (
         <div className="bg-card border border-border rounded-lg p-5">
@@ -414,7 +423,7 @@
       );
     }
 
-    // ---------- trading suggestions ----------
+    // ---------- trading suggestions (unchanged) ----------
     function SuggestionCard({ frequency }) {
       if (!frequency || frequency.length === 0) return null;
       const deviations = frequency.map(f => ({ digit: f.digit, dev: f.percentage - 10 }));
@@ -439,7 +448,7 @@
       );
     }
 
-    // ---------- frequency history chart ----------
+    // ---------- frequency history chart (unchanged) ----------
     function HistoryChart({ history }) {
       if (!history || history.length < 2) return (
         <div className="text-muted-foreground text-sm py-4 text-center">Collecting history (snapshots every 10 ticks)...</div>
@@ -474,9 +483,8 @@
       );
     }
 
-    // ---------- Blockly XML component (reads from hidden script) ----------
+    // ---------- Blockly XML display (unchanged) ----------
     function BlocklyXmlCard() {
-      // Retrieve the XML content from the script tag
       const xmlContent = useMemo(() => {
         const scriptTag = document.getElementById('bot-xml');
         return scriptTag ? scriptTag.textContent.trim() : '';
@@ -504,7 +512,211 @@
       );
     }
 
-    // ---------- main App ----------
+    // ---------- NEW: Live Trading Bot Component ----------
+    function TradingBot({ symbol, digits, frequency, isLive }) {
+      const [apiToken, setApiToken] = useState('');
+      const [stake, setStake] = useState(0.35);
+      const [condition, setCondition] = useState('over'); // 'over' or 'under'
+      const [botActive, setBotActive] = useState(false);
+      const [botStatus, setBotStatus] = useState('Stopped');
+      const [lastTrade, setLastTrade] = useState(null);
+      const [tradeLog, setTradeLog] = useState([]);
+      const wsBot = useRef(null);
+      const [authorized, setAuthorized] = useState(false);
+
+      // Compute the most overrepresented and underrepresented digits based on frequency
+      const overRep = useMemo(() => {
+        if (!frequency || frequency.length === 0) return [];
+        return [...frequency].sort((a,b) => b.percentage - a.percentage).map(f => f.digit);
+      }, [frequency]);
+      const underRep = useMemo(() => {
+        if (!frequency || frequency.length === 0) return [];
+        return [...frequency].sort((a,b) => a.percentage - b.percentage).map(f => f.digit);
+      }, [frequency]);
+
+      const checkCondition = (currentDigit) => {
+        if (condition === 'over' && overRep.length > 0) {
+          return currentDigit === overRep[0]; // buy when current digit is the most overrepresented
+        } else if (condition === 'under' && underRep.length > 0) {
+          return currentDigit === underRep[0]; // buy when current digit is the most underrepresented
+        }
+        return false;
+      };
+
+      // Connect and authorize bot WebSocket
+      const startBot = useCallback(() => {
+        if (!apiToken) {
+          alert('Please enter your Deriv API token');
+          return;
+        }
+        if (!isLive) {
+          alert('Please start the live tick stream first');
+          return;
+        }
+        if (botActive) return;
+        setBotActive(true);
+        setBotStatus('Connecting...');
+        setTradeLog([]);
+
+        // Create a new WebSocket for trading (authorized)
+        const ws = new WebSocket(DERIV_WS_URL);
+        wsBot.current = ws;
+
+        ws.onopen = () => {
+          // Authorize with token
+          ws.send(JSON.stringify({ authorize: apiToken }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.error) {
+              setBotStatus(`Error: ${data.error.message}`);
+              setBotActive(false);
+              ws.close();
+              return;
+            }
+            // Handle authorization response
+            if (data.msg_type === 'authorize') {
+              if (data.authorize) {
+                setAuthorized(true);
+                setBotStatus('Authorized, waiting for signals...');
+              } else {
+                setBotStatus('Authorization failed');
+                setBotActive(false);
+              }
+            }
+            // Handle proposal response
+            if (data.msg_type === 'proposal') {
+              if (data.proposal) {
+                // Buy the contract
+                ws.send(JSON.stringify({ buy: data.proposal.id, price: stake }));
+              }
+            }
+            // Handle buy response
+            if (data.msg_type === 'buy') {
+              if (data.buy) {
+                const trade = {
+                  id: data.buy.contract_id,
+                  price: data.buy.buy_price,
+                  payout: data.buy.payout,
+                  timestamp: new Date().toLocaleTimeString()
+                };
+                setLastTrade(trade);
+                setTradeLog(prev => [trade, ...prev].slice(0, 10));
+                setBotStatus(`Trade placed: ${trade.price} -> ${trade.payout}`);
+              }
+            }
+          } catch (e) {}
+        };
+
+        ws.onerror = () => {
+          setBotStatus('WebSocket error');
+          setBotActive(false);
+        };
+
+        ws.onclose = () => {
+          setBotActive(false);
+          setAuthorized(false);
+          if (botStatus !== 'Stopped') setBotStatus('Disconnected');
+        };
+      }, [apiToken, stake, isLive, botActive]);
+
+      const stopBot = useCallback(() => {
+        if (wsBot.current) {
+          wsBot.current.close();
+          wsBot.current = null;
+        }
+        setBotActive(false);
+        setAuthorized(false);
+        setBotStatus('Stopped');
+      }, []);
+
+      // Effect to listen to new digits and trigger trades if bot active and authorized
+      useEffect(() => {
+        if (!botActive || !authorized || digits.length === 0) return;
+        const latestDigit = digits[digits.length - 1];
+        if (checkCondition(latestDigit)) {
+          // Condition met: request a proposal for a 1-tick PUT contract
+          if (wsBot.current && wsBot.current.readyState === WebSocket.OPEN) {
+            const proposalRequest = {
+              proposal: 1,
+              amount: stake,
+              barrier: '',
+              basis: 'stake',
+              contract_type: 'PUT',
+              currency: 'USD',
+              duration: 1,
+              duration_unit: 't',
+              symbol: symbol
+            };
+            wsBot.current.send(JSON.stringify(proposalRequest));
+            setBotStatus('Sending proposal...');
+          }
+        }
+      }, [digits, botActive, authorized, symbol, stake, condition]);
+
+      // Cleanup on unmount
+      useEffect(() => {
+        return () => {
+          if (wsBot.current) wsBot.current.close();
+        };
+      }, []);
+
+      return (
+        <AnalysisCard title="🤖 Live Trading Bot" subtitle="Execute real trades based on analysis (use at your own risk)">
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-4 items-end">
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-xs text-muted-foreground block mb-1">Deriv API Token</label>
+                <input type="password" value={apiToken} onChange={e => setApiToken(e.target.value)} placeholder="Your API token" className="w-full bg-secondary border border-border rounded px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div className="w-24">
+                <label className="text-xs text-muted-foreground block mb-1">Stake (USD)</label>
+                <input type="number" step="0.01" min="0.35" value={stake} onChange={e => setStake(parseFloat(e.target.value) || 0.35)} className="w-full bg-secondary border border-border rounded px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div className="w-32">
+                <label className="text-xs text-muted-foreground block mb-1">Condition</label>
+                <select value={condition} onChange={e => setCondition(e.target.value)} className="w-full bg-secondary border border-border rounded px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="over">Most overrepresented</option>
+                  <option value="under">Most underrepresented</option>
+                </select>
+              </div>
+              <div>
+                {!botActive ? (
+                  <button onClick={startBot} className="bg-primary text-primary-foreground px-5 py-2 rounded text-sm font-semibold hover:opacity-90 transition-opacity">▶ Start Bot</button>
+                ) : (
+                  <button onClick={stopBot} className="bg-destructive text-destructive-foreground px-5 py-2 rounded text-sm font-semibold hover:opacity-90 transition-opacity">■ Stop Bot</button>
+                )}
+              </div>
+            </div>
+            <div className="bg-secondary p-3 rounded flex items-center justify-between">
+              <span className="text-sm">Status: <span className={botActive ? 'text-profit animate-pulse-glow' : 'text-muted-foreground'}>{botStatus}</span></span>
+              {lastTrade && (
+                <span className="text-xs text-highlight">Last trade: {lastTrade.price} USD → {lastTrade.payout} USD</span>
+              )}
+            </div>
+            {tradeLog.length > 0 && (
+              <div>
+                <h4 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Recent trades</h4>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {tradeLog.map((t, i) => (
+                    <div key={i} className="text-xs font-mono flex justify-between border-b border-border/50 py-1">
+                      <span>{t.timestamp}</span>
+                      <span className="text-profit">+{t.payout - t.price}</span>
+                      <span className="text-muted-foreground">({t.price} → {t.payout})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-2">⚠️ API token is used only in your browser. Never share it. Real money trading is at your own risk.</p>
+          </div>
+        </AnalysisCard>
+      );
+    }
+
+    // ---------- main App (integrated) ----------
     function Index() {
       const [maxTicks, setMaxTicks] = useState(1000);
       const [inputValue, setInputValue] = useState("1000");
@@ -580,8 +792,8 @@
           <header className="border-b border-border px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Bot XML</h1>
-                <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis & Bot Definition</p>
+                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Deriv Digits Analysis + Live Trading Bot</h1>
+                <p className="text-xs text-muted-foreground mt-0.5">Synthetic Indices — Live Analysis & Automated Trading</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
                 {isLive && <span className="flex items-center gap-1.5 text-profit"><span className="animate-pulse-glow">●</span> LIVE</span>}
@@ -592,6 +804,7 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+            {/* Controls */}
             <div className="bg-card border border-border rounded-lg p-4 flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
                 <label className="text-sm text-muted-foreground">Symbol:</label>
@@ -642,7 +855,10 @@
               </>
             )}
 
-            {/* Blockly XML Card - always visible */}
+            {/* NEW: Live Trading Bot */}
+            <TradingBot symbol={symbol} digits={digits} frequency={frequency} isLive={isLive} />
+
+            {/* Blockly XML Card (always visible) */}
             <BlocklyXmlCard />
           </main>
         </div>
