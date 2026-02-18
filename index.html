@@ -402,12 +402,24 @@
                 <SuggestionCard frequency={frequency} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <AnalysisCard title="Over / Under" subtitle="Probability per digit barrier"><OverUnderTable data={overUnder} /></AnalysisCard>
-                  <AnalysisCard title="Matches / Differs" subtitle="Match & differ probability per digit"><MatchDifferTable data={matchDiffer} /></AnalysisCard>
-                  <AnalysisCard title="Even / Odd" subtitle="Even vs odd distribution"><EvenOddDisplay data={evenOdd} /></AnalysisCard>
+                  {/* Over/Under card with current price added to subtitle */}
+                  <AnalysisCard 
+                    title="Over / Under" 
+                    subtitle={`Probability per digit barrier — Current price: ${lastPrice ? lastPrice : '--'}`}
+                  >
+                    <OverUnderTable data={overUnder} />
+                  </AnalysisCard>
+                  <AnalysisCard title="Matches / Differs" subtitle="Match & differ probability per digit">
+                    <MatchDifferTable data={matchDiffer} />
+                  </AnalysisCard>
+                  <AnalysisCard title="Even / Odd" subtitle="Even vs odd distribution">
+                    <EvenOddDisplay data={evenOdd} />
+                  </AnalysisCard>
                 </div>
 
-                <AnalysisCard title="Streak Tracking" subtitle="Longest & current consecutive streaks"><StreakDisplay data={streaks} /></AnalysisCard>
+                <AnalysisCard title="Streak Tracking" subtitle="Longest & current consecutive streaks">
+                  <StreakDisplay data={streaks} />
+                </AnalysisCard>
 
                 {/* NEW: Frequency History Chart */}
                 <AnalysisCard title="Frequency History (last 30 snapshots)" subtitle="Every 10 ticks — lines for most deviating digits">
