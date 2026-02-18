@@ -1,1245 +1,489 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deriv Professional Chart</title>
-    <style>
-        :root {
-            --background: #0a0b0e;
-            --card: #111827;
-            --foreground: #f8fafc;
-            --primary: #3b82f6;
-            --primary-foreground: #ffffff;
-            --secondary: #1e293b;
-            --border: #374151;
-            --chart-bullish: #10b981;
-            --chart-bearish: #ef4444;
-            --muted-foreground: #9ca3af;
-            --grid-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .light-mode {
-            --background: #f8fafc;
-            --card: #ffffff;
-            --foreground: #0f172a;
-            --primary: #3b82f6;
-            --primary-foreground: #ffffff;
-            --secondary: #f1f5f9;
-            --border: #e2e8f0;
-            --chart-bullish: #10b981;
-            --chart-bearish: #ef4444;
-            --muted-foreground: #64748b;
-            --grid-color: rgba(0, 0, 0, 0.1);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        body {
-            background: var(--background);
-            color: var(--foreground);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1800px;
-            margin: 0 auto;
-        }
-
-        /* Header */
-        .header {
-            background: var(--card);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid var(--border);
-        }
-
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        h1 {
-            font-size: 1.8rem;
-            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .status-bar {
-            display: flex;
-            gap: 15px;
-        }
-
-        .status {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            background: var(--secondary);
-            border-radius: 20px;
-            font-size: 14px;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #10b981;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        /* Chart Container */
-        .chart-container {
-            background: var(--card);
-            border-radius: 12px;
-            padding: 0;
-            border: 1px solid var(--border);
-            margin-bottom: 20px;
-            overflow: hidden;
-        }
-
-        /* Chart Controls */
-        .chart-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            border-bottom: 1px solid var(--border);
-            background: var(--secondary);
-        }
-
-        .left-controls {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .chart-type-btn {
-            padding: 8px 16px;
-            background: var(--background);
-            border: 1px solid var(--border);
-            color: var(--foreground);
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .chart-type-btn.active {
-            background: var(--primary);
-            color: var(--primary-foreground);
-            border-color: var(--primary);
-        }
-
-        .separator {
-            width: 1px;
-            height: 20px;
-            background: var(--border);
-            margin: 0 10px;
-        }
-
-        .timeframe-controls {
-            display: flex;
-            gap: 4px;
-        }
-
-        .timeframe-btn {
-            padding: 6px 12px;
-            background: var(--background);
-            border: 1px solid var(--border);
-            color: var(--foreground);
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        .timeframe-btn.active {
-            background: var(--primary);
-            color: var(--primary-foreground);
-            border-color: var(--primary);
-        }
-
-        /* Right Controls */
-        .right-controls {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .tick-indicator {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            font-weight: bold;
-            background: rgba(59, 130, 246, 0.1);
-            border: 2px solid #3b82f6;
-            color: #3b82f6;
-        }
-
-        .tick-indicator.up {
-            background: rgba(16, 185, 129, 0.1);
-            border-color: #10b981;
-            color: #10b981;
-        }
-
-        .tick-indicator.down {
-            background: rgba(239, 68, 68, 0.1);
-            border-color: #ef4444;
-            color: #ef4444;
-        }
-
-        /* Price Display */
-        .price-display {
-            padding: 15px 20px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .symbol-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .symbol-name {
-            font-size: 1.2rem;
-            font-weight: 600;
-        }
-
-        .price-value {
-            font-size: 1.8rem;
-            font-weight: 700;
-            font-family: 'Courier New', monospace;
-        }
-
-        .price-value.up {
-            color: #10b981;
-        }
-
-        .price-value.down {
-            color: #ef4444;
-        }
-
-        .price-change {
-            font-size: 0.9rem;
-            color: var(--muted-foreground);
-        }
-
-        /* Chart Canvas */
-        .chart-canvas-container {
-            height: 500px;
-            position: relative;
-            background: var(--background);
-        }
-
-        #priceChart {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        /* Indicators Panel */
-        .indicators-panel {
-            padding: 15px 20px;
-            border-top: 1px solid var(--border);
-            background: var(--secondary);
-        }
-
-        .indicators-list {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .indicator-badge {
-            padding: 6px 12px;
-            background: var(--background);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .indicator-color {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-        }
-
-        /* Loading */
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: var(--muted-foreground);
-            font-size: 14px;
-        }
-
-        /* Theme Toggle */
-        .theme-toggle {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-        }
-
-        .theme-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: var(--secondary);
-            border: 1px solid var(--border);
-            color: var(--foreground);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Legend */
-        .legend {
-            display: flex;
-            gap: 15px;
-            padding: 10px 20px;
-            font-size: 12px;
-            border-top: 1px solid var(--border);
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .legend-color {
-            width: 12px;
-            height: 2px;
-        }
-
-        .instructions {
-            text-align: center;
-            font-size: 12px;
-            color: var(--muted-foreground);
-            padding: 10px 20px;
-            border-top: 1px solid var(--border);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ Deriv Digits Analysis Terminal</title>
+  <!-- Tailwind CSS (lightweight base) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Custom theme variables & utility classes (matching the original design) -->
+  <style>
+    /* dark theme variables & custom color utilities */
+    :root {
+      --background: 15 15 15;
+      --card: 26 26 26;
+      --secondary: 38 38 38;
+      --border: 51 51 51;
+      --primary: 59 130 246;
+      --destructive: 239 68 68;
+      --profit: 16 185 129;
+      --loss: 239 68 68;
+      --highlight: 245 158 11;
+      --accent: 139 92 246;
+      --foreground: 255 255 255;
+      --muted-foreground: 161 161 170;
+    }
+    body { background-color: rgb(var(--background)); color: rgb(var(--foreground)); font-family: ui-monospace, monospace; }
+    .bg-background { background-color: rgb(var(--background)); }
+    .bg-card { background-color: rgb(var(--card)); }
+    .bg-secondary { background-color: rgb(var(--secondary)); }
+    .bg-primary { background-color: rgb(var(--primary)); }
+    .bg-destructive { background-color: rgb(var(--destructive)); }
+    .bg-profit { background-color: rgb(var(--profit)); }
+    .bg-loss { background-color: rgb(var(--loss)); }
+    .bg-highlight { background-color: rgb(var(--highlight)); }
+    .bg-accent { background-color: rgb(var(--accent)); }
+    .border-border { border-color: rgb(var(--border)); }
+    .text-foreground { color: rgb(var(--foreground)); }
+    .text-muted-foreground { color: rgb(var(--muted-foreground)); }
+    .text-primary { color: rgb(var(--primary)); }
+    .text-profit { color: rgb(var(--profit)); }
+    .text-loss { color: rgb(var(--loss)); }
+    .text-highlight { color: rgb(var(--highlight)); }
+    .text-accent { color: rgb(var(--accent)); }
+    .animate-pulse-glow {
+      animation: pulse-glow 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; text-shadow: 0 0 5px rgb(var(--profit)); }
+      50% { opacity: 0.5; text-shadow: 0 0 12px rgb(var(--profit)); }
+    }
+    /* additional small tweaks */
+    .font-mono { font-family: 'Menlo', 'Courier New', monospace; }
+  </style>
+  <!-- React 18 & Babel standalone -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body>
-    <!-- Theme Toggle -->
-    <div class="theme-toggle">
-        <button class="theme-btn" id="themeToggle">🌙</button>
-    </div>
+<body class="bg-background">
+  <div id="root"></div>
 
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <div class="header-top">
-                <h1>Deriv Professional Chart</h1>
-                <div class="status-bar">
-                    <div class="status">
-                        <span class="status-dot"></span>
-                        <span id="connectionStatus">Connecting...</span>
-                    </div>
-                    <div class="status">
-                        <span>Symbol: <span id="currentSymbol">1HZ10V</span></span>
-                    </div>
-                    <div class="status">
-                        <span>Candles: <span id="candleCount">0</span></span>
-                    </div>
-                    <div class="status">
-                        <span>Ticks: <span id="tickCount">0</span></span>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <script type="text/babel">
+    // -------------------- HOOKS & GLOBALS --------------------
+    const { useState, useMemo, useCallback, useEffect, useRef } = React;
 
-        <!-- Chart Container -->
-        <div class="chart-container">
-            <!-- Chart Controls -->
-            <div class="chart-controls">
-                <div class="left-controls">
-                    <button class="chart-type-btn active" id="candleBtn">
-                        <span>📊</span> Candles
-                    </button>
-                    <button class="chart-type-btn" id="lineBtn">
-                        <span>📈</span> Line
-                    </button>
-                    <div class="separator"></div>
-                    <div class="timeframe-controls">
-                        <button class="timeframe-btn active" data-timeframe="60">1M</button>
-                        <button class="timeframe-btn" data-timeframe="300">5M</button>
-                        <button class="timeframe-btn" data-timeframe="900">15M</button>
-                        <button class="timeframe-btn" data-timeframe="1800">30M</button>
-                        <button class="timeframe-btn" data-timeframe="3600">1H</button>
-                    </div>
-                </div>
-                <div class="right-controls">
-                    <div class="tick-indicator" id="tickIndicator">-</div>
-                    <div>
-                        <div style="font-size: 12px; color: var(--muted-foreground);">Last Price</div>
-                        <div style="font-size: 16px; font-weight: 600;" id="lastPrice">--.--</div>
-                    </div>
-                </div>
-            </div>
+    // -------------------- CONSTANTS (from derivWebSocket) --------------------
+    const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
+    const VOLATILITY_SYMBOLS = [
+      { value: "R_10", label: "Volatility 10 Index" },
+      { value: "R_25", label: "Volatility 25 Index" },
+      { value: "R_50", label: "Volatility 50 Index" },
+      { value: "R_75", label: "Volatility 75 Index" },
+      { value: "R_100", label: "Volatility 100 Index" },
+      { value: "1HZ10V", label: "Volatility 10 (1s) Index" },
+      { value: "1HZ25V", label: "Volatility 25 (1s) Index" },
+      { value: "1HZ50V", label: "Volatility 50 (1s) Index" },
+      { value: "1HZ75V", label: "Volatility 75 (1s) Index" },
+      { value: "1HZ100V", label: "Volatility 100 (1s) Index" },
+    ];
 
-            <!-- Price Display -->
-            <div class="price-display">
-                <div class="symbol-info">
-                    <div class="symbol-name" id="symbolName">Volatility 10 (1s) Index</div>
-                    <div class="price-value" id="currentPrice">--.--</div>
-                    <div class="price-change" id="priceChange">+0.00 (0.00%)</div>
-                </div>
-            </div>
+    // -------------------- WEBSOCKET CONNECTION (derivWebSocket.js) --------------------
+    function connectDeriv() {
+      let ws = null;
+      let subscriptionId = null;
 
-            <!-- Chart Canvas -->
-            <div class="chart-canvas-container">
-                <canvas id="priceChart"></canvas>
-                <div class="loading" id="chartLoading">Loading chart data...</div>
-            </div>
+      const subscribe = (symbol, onTick) => {
+        if (ws) ws.close();
 
-            <!-- Indicators Panel -->
-            <div class="indicators-panel">
-                <div class="indicators-list" id="indicatorsList">
-                    <div class="indicator-badge">
-                        <span class="indicator-color" style="background: #f59e0b;"></span>
-                        SMA 20
-                    </div>
-                    <div class="indicator-badge">
-                        <span class="indicator-color" style="background: #10b981;"></span>
-                        EMA 20
-                    </div>
-                    <div class="indicator-badge">
-                        <span class="indicator-color" style="background: #8b5cf6;"></span>
-                        Bollinger Bands
-                    </div>
-                </div>
-            </div>
+        ws = new WebSocket(DERIV_WS_URL);
 
-            <!-- Legend -->
-            <div class="legend" id="chartLegend">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #10b981;"></div>
-                    <span>Bullish Candle</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #ef4444;"></div>
-                    <span>Bearish Candle</span>
-                </div>
-            </div>
-
-            <!-- Instructions -->
-            <div class="instructions" id="instructions">
-                Scroll to zoom • Drag to pan • Ctrl+Scroll for fine zoom
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Configuration
-        const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=1089';
-        const MAX_CANDLES = 100;
-        const MIN_VISIBLE_CANDLES = 50;
-        const ZOOM_STEP = 0.2;
-
-        // Supported symbols
-        const SYMBOLS = {
-            '1HZ10V': { name: 'Volatility 10 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_10': { name: 'Volatility 10 Index', type: 'standard', basePrice: 35000 },
-            '1HZ15V': { name: 'Volatility 15 (1s) Index', type: '1s', basePrice: 35000 },
-            '1HZ25V': { name: 'Volatility 25 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_25': { name: 'Volatility 25 Index', type: 'standard', basePrice: 35000 },
-            '1HZ30V': { name: 'Volatility 30 (1s) Index', type: '1s', basePrice: 35000 },
-            '1HZ50V': { name: 'Volatility 50 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_50': { name: 'Volatility 50 Index', type: 'standard', basePrice: 35000 },
-            '1HZ75V': { name: 'Volatility 75 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_75': { name: 'Volatility 75 Index', type: 'standard', basePrice: 35000 },
-            '1HZ90V': { name: 'Volatility 90 (1s) Index', type: '1s', basePrice: 35000 },
-            '1HZ100V': { name: 'Volatility 100 (1s) Index', type: '1s', basePrice: 35000 },
-            'R_100': { name: 'Volatility 100 Index', type: 'standard', basePrice: 35000 }
+        ws.onopen = () => {
+          ws?.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
         };
 
-        // Global state
-        let socket = null;
-        let activeSymbol = '1HZ10V';
-        let activeTimeframe = 60;
-        let chartType = 'candlestick';
-        let candles = [];
-        let currentCandle = null;
-        let currentPrice = 0;
-        let previousPrice = 0;
-        let tickCount = 0;
-        let zoomLevel = 1;
-        let panOffset = 0;
-        let ctx = null;
-        let canvas = null;
-        let isDragging = false;
-        let dragStartX = 0;
-        let dragStartOffset = 0;
-
-        // Generate sample candles for testing
-        function generateSampleCandles(count = 100) {
-            const now = Date.now();
-            const basePrice = SYMBOLS[activeSymbol]?.basePrice || 35000;
-            const sampleCandles = [];
-            
-            for (let i = 0; i < count; i++) {
-                const time = now - (count - i) * 60 * 1000; // 1 minute intervals
-                const open = basePrice + Math.random() * 1000 - 500;
-                const close = open + Math.random() * 2000 - 1000;
-                const high = Math.max(open, close) + Math.random() * 500;
-                const low = Math.min(open, close) - Math.random() * 500;
-                
-                sampleCandles.push({
-                    time: time,
-                    open: open,
-                    high: high,
-                    low: low,
-                    close: close,
-                    volume: Math.random() * 1000
-                });
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.tick) {
+              subscriptionId = data.tick.id;
+              const price = String(data.tick.quote);
+              const lastDigit = parseInt(price[price.length - 1], 10);
+              onTick(lastDigit, price);
             }
-            
-            return sampleCandles;
-        }
+          } catch (e) { /* ignore */ }
+        };
 
-        // Theme management
-        function initTheme() {
-            const themeBtn = document.getElementById('themeToggle');
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            
-            if (savedTheme === 'light') {
-                document.body.classList.add('light-mode');
-                themeBtn.textContent = '🌙';
-            } else {
-                themeBtn.textContent = '☀️';
-            }
-            
-            themeBtn.addEventListener('click', () => {
-                if (document.body.classList.contains('light-mode')) {
-                    document.body.classList.remove('light-mode');
-                    localStorage.setItem('theme', 'dark');
-                    themeBtn.textContent = '☀️';
-                } else {
-                    document.body.classList.add('light-mode');
-                    localStorage.setItem('theme', 'light');
-                    themeBtn.textContent = '🌙';
-                }
-                drawChart();
-            });
-        }
+        ws.onerror = () => console.error("Deriv WS error");
+      };
 
-        // Initialize chart
-        function initChart() {
-            canvas = document.getElementById('priceChart');
-            ctx = canvas.getContext('2d');
-            
-            // Set canvas size
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            
-            // Event listeners
-            canvas.addEventListener('wheel', handleWheel);
-            canvas.addEventListener('mousedown', handleMouseDown);
-            canvas.addEventListener('mousemove', handleMouseMove);
-            canvas.addEventListener('mouseup', handleMouseUp);
-            canvas.addEventListener('mouseleave', handleMouseUp);
-            
-            // Generate sample data for testing
-            candles = generateSampleCandles();
-            currentPrice = candles[candles.length - 1]?.close || 0;
-            
-            // Hide loading
-            document.getElementById('chartLoading').style.display = 'none';
-            
-            // Initial draw
-            drawChart();
+      const unsubscribe = () => {
+        if (ws && subscriptionId) {
+          ws.send(JSON.stringify({ forget: subscriptionId }));
+          subscriptionId = null;
         }
+      };
 
-        // Handle zoom and pan
-        function handleWheel(e) {
-            e.preventDefault();
-            
-            if (e.ctrlKey || e.metaKey) {
-                // Zoom
-                if (e.deltaY < 0) {
-                    zoomIn();
-                } else {
-                    zoomOut();
-                }
-            } else {
-                // Pan
-                const delta = e.deltaY > 0 ? 5 : -5;
-                panOffset = Math.max(0, Math.min(
-                    panOffset + delta,
-                    Math.max(0, candles.length - getVisibleCandleCount())
-                ));
-            }
-            
-            drawChart();
+      const disconnect = () => {
+        unsubscribe();
+        if (ws) { ws.close(); ws = null; }
+      };
+
+      return { subscribe, unsubscribe, disconnect };
+    }
+
+    // -------------------- ANALYSIS FUNCTIONS (digitAnalysis.js) --------------------
+    function computeDigitFrequency(digits) {
+      const total = digits.length;
+      const counts = Array(10).fill(0);
+      digits.forEach(d => counts[d]++);
+      return counts.map((count, digit) => ({
+        digit, count,
+        percentage: total > 0 ? (count / total) * 100 : 0
+      }));
+    }
+
+    function computeOverUnder(digits) {
+      const total = digits.length;
+      return Array.from({ length: 10 }, (_, target) => {
+        const overCount = digits.filter(d => d > target).length;
+        const underCount = digits.filter(d => d < target).length;
+        return {
+          digit: target,
+          overCount,
+          overPercentage: total > 0 ? (overCount / total) * 100 : 0,
+          underCount,
+          underPercentage: total > 0 ? (underCount / total) * 100 : 0,
+        };
+      });
+    }
+
+    function computeMatchDiffer(digits) {
+      const total = digits.length;
+      return Array.from({ length: 10 }, (_, target) => {
+        const matchCount = digits.filter(d => d === target).length;
+        return {
+          digit: target,
+          matchCount,
+          matchPercentage: total > 0 ? (matchCount / total) * 100 : 0,
+          differCount: total - matchCount,
+          differPercentage: total > 0 ? ((total - matchCount) / total) * 100 : 0,
+        };
+      });
+    }
+
+    function computeEvenOdd(digits) {
+      const total = digits.length;
+      const evenCount = digits.filter(d => d % 2 === 0).length;
+      return {
+        evenCount,
+        evenPercentage: total > 0 ? (evenCount / total) * 100 : 0,
+        oddCount: total - evenCount,
+        oddPercentage: total > 0 ? ((total - evenCount) / total) * 100 : 0,
+      };
+    }
+
+    function computeStreaks(digits) {
+      let curEven = 0, curOdd = 0, maxEven = 0, maxOdd = 0;
+      const curDigit = Array(10).fill(0);
+      const maxDigit = Array(10).fill(0);
+
+      for (const d of digits) {
+        if (d % 2 === 0) {
+          curEven++; maxEven = Math.max(maxEven, curEven); curOdd = 0;
+        } else {
+          curOdd++; maxOdd = Math.max(maxOdd, curOdd); curEven = 0;
         }
-
-        function handleMouseDown(e) {
-            isDragging = true;
-            dragStartX = e.clientX;
-            dragStartOffset = panOffset;
-            canvas.style.cursor = 'grabbing';
+        for (let i = 0; i < 10; i++) {
+          if (i === d) {
+            curDigit[i]++; maxDigit[i] = Math.max(maxDigit[i], curDigit[i]);
+          } else {
+            curDigit[i] = 0;
+          }
         }
+      }
+      return {
+        currentEvenStreak: curEven,
+        currentOddStreak: curOdd,
+        longestEvenStreak: maxEven,
+        longestOddStreak: maxOdd,
+        digitStreaks: Array.from({ length: 10 }, (_, i) => ({ digit: i, current: curDigit[i], longest: maxDigit[i] })),
+      };
+    }
 
-        function handleMouseMove(e) {
-            if (!isDragging) return;
-            
-            const deltaX = e.clientX - dragStartX;
-            const pixelToCandleRatio = getVisibleCandleCount() / canvas.width;
-            panOffset = Math.max(0, Math.min(
-                dragStartOffset - deltaX * pixelToCandleRatio,
-                Math.max(0, candles.length - getVisibleCandleCount())
-            ));
-            
-            drawChart();
-        }
+    // -------------------- REACT COMPONENTS --------------------
 
-        function handleMouseUp() {
-            isDragging = false;
-            canvas.style.cursor = 'default';
-        }
+    // AnalysisCard (simple wrapper)
+    function AnalysisCard({ title, subtitle, children }) {
+      return (
+        <div className="bg-card border border-border rounded-lg p-5">
+          <div className="mb-4">
+            <h3 className="font-semibold text-foreground text-sm uppercase tracking-wider">{title}</h3>
+            {subtitle && <p className="text-muted-foreground text-xs mt-1">{subtitle}</p>}
+          </div>
+          {children}
+        </div>
+      );
+    }
 
-        function zoomIn() {
-            zoomLevel = Math.min(zoomLevel + ZOOM_STEP, candles.length / MIN_VISIBLE_CANDLES);
-        }
+    // DigitBar (with dynamic colors)
+    function DigitBar({ digit, percentage, maxPercentage = 100, color = "highlight" }) {
+      const width = Math.max((percentage / maxPercentage) * 100, 2);
+      const isHigh = percentage > 12;
+      const isLow = percentage < 8;
+      const colorMap = { profit: "bg-profit", loss: "bg-loss", highlight: "bg-highlight", accent: "bg-accent" };
+      const barColor = isHigh ? "bg-profit" : isLow ? "bg-loss" : colorMap[color];
+      return (
+        <div className="flex items-center gap-3 group">
+          <span className="font-mono text-sm w-6 text-muted-foreground font-semibold">{digit}</span>
+          <div className="flex-1 h-7 bg-secondary rounded-sm overflow-hidden relative">
+            <div className={`h-full rounded-sm transition-all duration-500 ${barColor}`} style={{ width: `${width}%` }} />
+          </div>
+          <span className={`font-mono text-sm w-16 text-right font-semibold ${isHigh ? "text-profit" : isLow ? "text-loss" : "text-foreground"}`}>
+            {percentage.toFixed(1)}%
+          </span>
+        </div>
+      );
+    }
 
-        function zoomOut() {
-            zoomLevel = Math.max(zoomLevel - ZOOM_STEP, 1);
-        }
+    // EvenOddDisplay
+    function EvenOddDisplay({ data }) {
+      return (
+        <div className="flex gap-4">
+          <div className="flex-1 bg-secondary rounded-lg p-4 text-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Even</div>
+            <div className="font-mono text-2xl font-bold text-profit">{data.evenPercentage.toFixed(1)}%</div>
+            <div className="text-xs text-muted-foreground mt-1">{data.evenCount} ticks</div>
+          </div>
+          <div className="flex-1 bg-secondary rounded-lg p-4 text-center">
+            <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Odd</div>
+            <div className="font-mono text-2xl font-bold text-loss">{data.oddPercentage.toFixed(1)}%</div>
+            <div className="text-xs text-muted-foreground mt-1">{data.oddCount} ticks</div>
+          </div>
+        </div>
+      );
+    }
 
-        function getVisibleCandleCount() {
-            return Math.max(MIN_VISIBLE_CANDLES, Math.floor(candles.length / zoomLevel));
-        }
+    // OverUnderTable
+    function OverUnderTable({ data }) {
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm font-mono">
+            <thead><tr className="text-muted-foreground text-xs uppercase tracking-wider"><th className="text-left py-2 px-2">Digit</th><th className="text-right py-2 px-2">Over %</th><th className="text-right py-2 px-2">Under %</th></tr></thead>
+            <tbody>
+              {data.map(row => (
+                <tr key={row.digit} className="border-t border-border hover:bg-secondary/50 transition-colors">
+                  <td className="py-2 px-2 font-semibold">{row.digit}</td>
+                  <td className="py-2 px-2 text-right text-profit">{row.overPercentage.toFixed(1)}%</td>
+                  <td className="py-2 px-2 text-right text-loss">{row.underPercentage.toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
 
-        // Chart drawing
-        function drawChart() {
-            if (!ctx || !canvas) return;
-            
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (candles.length === 0) {
-                drawNoData();
-                return;
-            }
-            
-            // Calculate visible range
-            const visibleCount = getVisibleCandleCount();
-            const startIndex = Math.max(0, Math.floor(panOffset));
-            const endIndex = Math.min(startIndex + visibleCount, candles.length);
-            const visibleCandles = candles.slice(startIndex, endIndex);
-            
-            if (visibleCandles.length === 0) {
-                drawNoData();
-                return;
-            }
-            
-            // Calculate price range
-            const priceRange = getPriceRange(visibleCandles);
-            
-            // Chart dimensions
-            const padding = { left: 80, right: 40, top: 30, bottom: 40 };
-            const chartWidth = canvas.width - padding.left - padding.right;
-            const chartHeight = canvas.height - padding.top - padding.bottom;
-            
-            // Draw grid
-            drawGrid(padding, chartWidth, chartHeight, priceRange);
-            
-            // Draw indicators
-            drawIndicators(visibleCandles, padding, chartWidth, chartHeight, priceRange);
-            
-            // Draw candles or line
-            if (chartType === 'candlestick') {
-                drawCandlesticks(visibleCandles, padding, chartWidth, chartHeight, priceRange);
-            } else {
-                drawLineChart(visibleCandles, padding, chartWidth, chartHeight, priceRange);
-            }
-            
-            // Draw current price line
-            if (currentPrice > 0) {
-                drawCurrentPriceLine(padding, chartWidth, chartHeight, priceRange);
-            }
-            
-            // Draw axes
-            drawAxes(padding, chartWidth, chartHeight, visibleCandles);
-            
-            // Update candle count
-            document.getElementById('candleCount').textContent = candles.length;
-        }
+    // MatchDifferTable
+    function MatchDifferTable({ data }) {
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm font-mono">
+            <thead><tr className="text-muted-foreground text-xs uppercase tracking-wider"><th className="text-left py-2 px-2">Digit</th><th className="text-right py-2 px-2">Matches %</th><th className="text-right py-2 px-2">Differs %</th></tr></thead>
+            <tbody>
+              {data.map(row => (
+                <tr key={row.digit} className="border-t border-border hover:bg-secondary/50 transition-colors">
+                  <td className="py-2 px-2 font-semibold">{row.digit}</td>
+                  <td className="py-2 px-2 text-right text-highlight">{row.matchPercentage.toFixed(1)}%</td>
+                  <td className="py-2 px-2 text-right text-accent">{row.differPercentage.toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
 
-        function getPriceRange(candles) {
-            let min = Infinity;
-            let max = -Infinity;
-            
-            candles.forEach(candle => {
-                min = Math.min(min, candle.low);
-                max = Math.max(max, candle.high);
-            });
-            
-            // Add SMA 20
-            const sma20 = calculateSMA(candles, 20);
-            sma20.forEach(val => {
-                if (val !== null) {
-                    min = Math.min(min, val);
-                    max = Math.max(max, val);
-                }
-            });
-            
-            // Add EMA 20
-            const ema20 = calculateEMA(candles, 20);
-            ema20.forEach(val => {
-                if (val !== null) {
-                    min = Math.min(min, val);
-                    max = Math.max(max, val);
-                }
-            });
-            
-            // Add Bollinger Bands
-            const bb = calculateBollingerBands(candles, 20, 2);
-            bb.upper.forEach((val, i) => {
-                if (val !== null && bb.lower[i] !== null) {
-                    min = Math.min(min, bb.lower[i]);
-                    max = Math.max(max, val);
-                }
-            });
-            
-            // Add padding
-            const padding = (max - min) * 0.05;
-            return {
-                min: min - padding,
-                max: max + padding
-            };
-        }
+    // StreakDisplay
+    function StreakDisplay({ data }) {
+      return (
+        <div className="space-y-4">
+          <div className="flex gap-4">
+            <div className="flex-1 bg-secondary rounded-lg p-3 text-center">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Even Streak</div>
+              <div className="flex items-baseline justify-center gap-2">
+                <span className="font-mono text-xl font-bold text-profit">{data.longestEvenStreak}</span>
+                <span className="text-xs text-muted-foreground">longest</span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">current: <span className="font-mono text-foreground">{data.currentEvenStreak}</span></div>
+            </div>
+            <div className="flex-1 bg-secondary rounded-lg p-3 text-center">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Odd Streak</div>
+              <div className="flex items-baseline justify-center gap-2">
+                <span className="font-mono text-xl font-bold text-loss">{data.longestOddStreak}</span>
+                <span className="text-xs text-muted-foreground">longest</span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">current: <span className="font-mono text-foreground">{data.currentOddStreak}</span></div>
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Consecutive per Digit</div>
+            <div className="grid grid-cols-5 gap-2">
+              {data.digitStreaks.map(s => (
+                <div key={s.digit} className="bg-secondary rounded p-2 text-center">
+                  <div className="font-mono text-xs text-highlight font-bold mb-1">{s.digit}</div>
+                  <div className="font-mono text-sm font-bold text-foreground">{s.longest}</div>
+                  <div className="text-[10px] text-muted-foreground">now {s.current}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
 
-        function drawGrid(padding, chartWidth, chartHeight, priceRange) {
-            // Grid background
-            ctx.fillStyle = document.body.classList.contains('light-mode') 
-                ? '#ffffff' 
-                : '#111827';
-            ctx.fillRect(padding.left, padding.top, chartWidth, chartHeight);
-            
-            // Grid lines
-            ctx.strokeStyle = document.body.classList.contains('light-mode') 
-                ? 'rgba(0, 0, 0, 0.1)' 
-                : 'rgba(255, 255, 255, 0.1)';
-            ctx.lineWidth = 1;
-            
-            // Horizontal grid lines
-            for (let i = 0; i <= 10; i++) {
-                const y = padding.top + (i * chartHeight / 10);
-                ctx.beginPath();
-                ctx.moveTo(padding.left, y);
-                ctx.lineTo(padding.left + chartWidth, y);
-                ctx.stroke();
-            }
-            
-            // Vertical grid lines
-            for (let i = 0; i <= 10; i++) {
-                const x = padding.left + (i * chartWidth / 10);
-                ctx.beginPath();
-                ctx.moveTo(x, padding.top);
-                ctx.lineTo(x, padding.top + chartHeight);
-                ctx.stroke();
-            }
-            
-            // Price labels on Y-axis
-            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#666' : '#aaa';
-            ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.textAlign = 'right';
-            ctx.textBaseline = 'middle';
-            
-            for (let i = 0; i <= 10; i++) {
-                const price = priceRange.max - (priceRange.max - priceRange.min) * i / 10;
-                const y = padding.top + (i * chartHeight / 10);
-                ctx.fillText(price.toFixed(2), padding.left - 10, y);
-            }
-        }
+    // -------------------- MAIN APP (Index.tsx) --------------------
+    function Index() {
+      const [maxTicks, setMaxTicks] = useState(1000);
+      const [inputValue, setInputValue] = useState("1000");
+      const [digits, setDigits] = useState([]);
+      const [symbol, setSymbol] = useState("R_100");
+      const [isLive, setIsLive] = useState(false);
+      const [lastPrice, setLastPrice] = useState(null);
+      const connectionRef = useRef(null);
 
-        function drawCandlesticks(candles, padding, chartWidth, chartHeight, priceRange) {
-            const candleWidth = Math.max(2, Math.min(20, chartWidth / candles.length * 0.7));
-            
-            for (let i = 0; i < candles.length; i++) {
-                const candle = candles[i];
-                const isBullish = candle.close >= candle.open;
-                const color = isBullish ? '#10b981' : '#ef4444';
-                
-                // Calculate positions
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                
-                // Convert prices to Y coordinates
-                const openY = priceToY(candle.open, priceRange, padding, chartHeight);
-                const closeY = priceToY(candle.close, priceRange, padding, chartHeight);
-                const highY = priceToY(candle.high, priceRange, padding, chartHeight);
-                const lowY = priceToY(candle.low, priceRange, padding, chartHeight);
-                
-                // Draw wick (vertical line from high to low)
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(x, highY);
-                ctx.lineTo(x, lowY);
-                ctx.stroke();
-                
-                // Draw body (rectangle from open to close)
-                ctx.fillStyle = color;
-                const bodyTop = Math.min(openY, closeY);
-                const bodyHeight = Math.max(Math.abs(closeY - openY), 1);
-                ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-                
-                // Draw body border
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-            }
-        }
+      const frequency = useMemo(() => computeDigitFrequency(digits), [digits]);
+      const overUnder = useMemo(() => computeOverUnder(digits), [digits]);
+      const matchDiffer = useMemo(() => computeMatchDiffer(digits), [digits]);
+      const evenOdd = useMemo(() => computeEvenOdd(digits), [digits]);
+      const streaks = useMemo(() => computeStreaks(digits), [digits]);
+      const maxFreqPct = useMemo(() => Math.max(...frequency.map(f => f.percentage), 15), [frequency]);
 
-        function drawLineChart(candles, padding, chartWidth, chartHeight, priceRange) {
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            
-            for (let i = 0; i < candles.length; i++) {
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                const y = priceToY(candles[i].close, priceRange, padding, chartHeight);
-                
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.stroke();
-            
-            // Draw dots at data points
-            ctx.fillStyle = '#3b82f6';
-            for (let i = 0; i < candles.length; i += Math.max(1, Math.floor(candles.length / 10))) {
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                const y = priceToY(candles[i].close, priceRange, padding, chartHeight);
-                ctx.beginPath();
-                ctx.arc(x, y, 3, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
+      const startStream = useCallback(() => {
+        if (connectionRef.current) connectionRef.current.disconnect();
+        setDigits([]);
+        setLastPrice(null);
+        const conn = connectDeriv();
+        connectionRef.current = conn;
+        setIsLive(true);
 
-        function drawIndicators(candles, padding, chartWidth, chartHeight, priceRange) {
-            // SMA 20
-            const sma20 = calculateSMA(candles, 20);
-            ctx.strokeStyle = '#f59e0b';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            
-            for (let i = 0; i < candles.length; i++) {
-                if (sma20[i] === null) continue;
-                
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                const y = priceToY(sma20[i], priceRange, padding, chartHeight);
-                
-                if (i === 0 || sma20[i-1] === null) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.stroke();
-            
-            // EMA 20
-            const ema20 = calculateEMA(candles, 20);
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            
-            for (let i = 0; i < candles.length; i++) {
-                if (ema20[i] === null) continue;
-                
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                const y = priceToY(ema20[i], priceRange, padding, chartHeight);
-                
-                if (i === 0 || ema20[i-1] === null) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.stroke();
-            
-            // Bollinger Bands
-            const bb = calculateBollingerBands(candles, 20, 2);
-            
-            // Fill between bands
-            ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
-            ctx.beginPath();
-            
-            for (let i = 0; i < candles.length; i++) {
-                if (bb.upper[i] === null) continue;
-                
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                const y = priceToY(bb.upper[i], priceRange, padding, chartHeight);
-                
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            
-            for (let i = candles.length - 1; i >= 0; i--) {
-                if (bb.lower[i] === null) continue;
-                
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                const y = priceToY(bb.lower[i], priceRange, padding, chartHeight);
-                ctx.lineTo(x, y);
-            }
-            
-            ctx.closePath();
-            ctx.fill();
-            
-            // Draw bands
-            ctx.strokeStyle = '#8b5cf6';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 2]);
-            
-            // Upper band
-            ctx.beginPath();
-            for (let i = 0; i < candles.length; i++) {
-                if (bb.upper[i] === null) continue;
-                
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                const y = priceToY(bb.upper[i], priceRange, padding, chartHeight);
-                
-                if (i === 0 || bb.upper[i-1] === null) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.stroke();
-            
-            // Middle band
-            ctx.setLineDash([]);
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            for (let i = 0; i < candles.length; i++) {
-                if (bb.middle[i] === null) continue;
-                
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                const y = priceToY(bb.middle[i], priceRange, padding, chartHeight);
-                
-                if (i === 0 || bb.middle[i-1] === null) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.stroke();
-            
-            // Lower band
-            ctx.setLineDash([4, 2]);
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            for (let i = 0; i < candles.length; i++) {
-                if (bb.lower[i] === null) continue;
-                
-                const x = padding.left + (i * chartWidth / candles.length) + (chartWidth / candles.length / 2);
-                const y = priceToY(bb.lower[i], priceRange, padding, chartHeight);
-                
-                if (i === 0 || bb.lower[i-1] === null) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.stroke();
-            
-            ctx.setLineDash([]);
-        }
+        conn.subscribe(symbol, (digit, price) => {
+          setLastPrice(price);
+          setDigits(prev => {
+            const next = [...prev, digit];
+            return next.length > maxTicks ? next.slice(next.length - maxTicks) : next;
+          });
+        });
+      }, [symbol, maxTicks]);
 
-        function drawCurrentPriceLine(padding, chartWidth, chartHeight, priceRange) {
-            const y = priceToY(currentPrice, priceRange, padding, chartHeight);
-            
-            ctx.strokeStyle = currentPrice > previousPrice ? '#10b981' : '#ef4444';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 3]);
-            
-            ctx.beginPath();
-            ctx.moveTo(padding.left, y);
-            ctx.lineTo(padding.left + chartWidth, y);
-            ctx.stroke();
-            
-            ctx.setLineDash([]);
-            
-            // Draw price label
-            ctx.fillStyle = currentPrice > previousPrice ? '#10b981' : '#ef4444';
-            ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.textAlign = 'right';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(currentPrice.toFixed(2), padding.left + chartWidth + 10, y);
-        }
+      const stopStream = useCallback(() => {
+        connectionRef.current?.disconnect();
+        connectionRef.current = null;
+        setIsLive(false);
+      }, []);
 
-        function drawAxes(padding, chartWidth, chartHeight, candles) {
-            // Y-axis line
-            ctx.strokeStyle = document.body.classList.contains('light-mode') ? '#000' : '#fff';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(padding.left, padding.top);
-            ctx.lineTo(padding.left, padding.top + chartHeight);
-            ctx.stroke();
-            
-            // X-axis line
-            ctx.beginPath();
-            ctx.moveTo(padding.left, padding.top + chartHeight);
-            ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
-            ctx.stroke();
-            
-            // Time labels on X-axis
-            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#666' : '#aaa';
-            ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'top';
-            
-            const labelCount = Math.min(5, candles.length);
-            for (let i = 0; i < labelCount; i++) {
-                const index = Math.floor((i / (labelCount - 1)) * (candles.length - 1));
-                const x = padding.left + (index * chartWidth / (candles.length - 1)) + (chartWidth / candles.length / 2);
-                const time = new Date(candles[index].time);
-                const timeStr = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`;
-                ctx.fillText(timeStr, x, padding.top + chartHeight + 10);
-            }
-        }
+      useEffect(() => {
+        return () => connectionRef.current?.disconnect();
+      }, []);
 
-        function drawNoData() {
-            ctx.fillStyle = document.body.classList.contains('light-mode') ? '#666' : '#999';
-            ctx.font = '16px -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('Loading chart data...', canvas.width / 2, canvas.height / 2);
-        }
+      const handleMaxTicksChange = () => {
+        const count = Math.max(10, Math.min(50000, parseInt(inputValue) || 1000));
+        setMaxTicks(count);
+        setInputValue(String(count));
+        setDigits(prev => (prev.length > count ? prev.slice(prev.length - count) : prev));
+      };
 
-        function priceToY(price, priceRange, padding, chartHeight) {
-            return padding.top + chartHeight - 
-                   ((price - priceRange.min) / (priceRange.max - priceRange.min)) * chartHeight;
-        }
+      const selectedLabel = VOLATILITY_SYMBOLS.find(s => s.value === symbol)?.label || symbol;
 
-        // Indicator calculations
-        function calculateSMA(candles, period) {
-            if (candles.length < period) return new Array(candles.length).fill(null);
-            
-            const sma = new Array(candles.length).fill(null);
-            for (let i = period - 1; i < candles.length; i++) {
-                let sum = 0;
-                for (let j = 0; j < period; j++) {
-                    sum += candles[i - j].close;
-                }
-                sma[i] = sum / period;
-            }
-            return sma;
-        }
+      return (
+        <div className="min-h-screen bg-background">
+          {/* Header */}
+          <header className="border-b border-border px-6 py-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h1 className="text-xl font-bold text-foreground tracking-tight">
+                  <span className="text-primary">●</span> Digit Analysis Terminal
+                </h1>
+                <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis</p>
+              </div>
+              <div className="flex items-center gap-3 text-xs font-mono">
+                {isLive && (
+                  <span className="flex items-center gap-1.5 text-profit">
+                    <span className="animate-pulse-glow">●</span> LIVE
+                  </span>
+                )}
+                <span className="text-muted-foreground">{digits.length.toLocaleString()} ticks</span>
+                {lastPrice && <span className="text-highlight font-semibold">{lastPrice}</span>}
+              </div>
+            </div>
+          </header>
 
-        function calculateEMA(candles, period) {
-            if (candles.length < period) return new Array(candles.length).fill(null);
-            
-            const multiplier = 2 / (period + 1);
-            let ema = candles[0].close;
-            const emaValues = new Array(candles.length).fill(null);
-            emaValues[0] = ema;
-            
-            for (let i = 1; i < candles.length; i++) {
-                ema = (candles[i].close - ema) * multiplier + ema;
-                emaValues[i] = ema;
-            }
-            return emaValues;
-        }
+          <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+            {/* Controls */}
+            <div className="bg-card border border-border rounded-lg p-4 flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">Symbol:</label>
+                <select value={symbol} onChange={e => setSymbol(e.target.value)} disabled={isLive}
+                  className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50">
+                  {VOLATILITY_SYMBOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">Max ticks:</label>
+                <input type="number" value={inputValue} onChange={e => setInputValue(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleMaxTicksChange()} onBlur={handleMaxTicksChange}
+                  min={10} max={50000}
+                  className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground w-24 focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div className="flex gap-2 ml-auto">
+                {!isLive ? (
+                  <button onClick={startStream} className="bg-primary text-primary-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">▶ Start Live</button>
+                ) : (
+                  <button onClick={stopStream} className="bg-destructive text-destructive-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">■ Stop</button>
+                )}
+              </div>
+            </div>
 
-        function calculateBollingerBands(candles, period, stdDev) {
-            if (candles.length < period) {
-                return {
-                    upper: new Array(candles.length).fill(null),
-                    middle: new Array(candles.length).fill(null),
-                    lower: new Array(candles.length).fill(null)
-                };
-            }
-            
-            const upper = new Array(candles.length).fill(null);
-            const middle = new Array(candles.length).fill(null);
-            const lower = new Array(candles.length).fill(null);
-            
-            for (let i = period - 1; i < candles.length; i++) {
-                // Calculate SMA
-                let sum = 0;
-                for (let j = 0; j < period; j++) {
-                    sum += candles[i - j].close;
-                }
-                const sma = sum / period;
-                
-                // Calculate standard deviation
-                let variance = 0;
-                for (let j = 0; j < period; j++) {
-                    variance += Math.pow(candles[i - j].close - sma, 2);
-                }
-                const std = Math.sqrt(variance / period);
-                
-                upper[i] = sma + (std * stdDev);
-                middle[i] = sma;
-                lower[i] = sma - (std * stdDev);
-            }
-            
-            return { upper, middle, lower };
-        }
+            {digits.length === 0 && !isLive && (
+              <div className="bg-card border border-border rounded-lg p-12 text-center">
+                <p className="text-muted-foreground text-lg mb-2">Select a symbol and click <strong className="text-primary">Start Live</strong> to begin</p>
+                <p className="text-muted-foreground text-sm">Real-time tick data from Deriv's synthetic indices</p>
+              </div>
+            )}
 
-        // WebSocket connection (simulated for now)
-        function connectToDeriv() {
-            // Simulate connection
-            setTimeout(() => {
-                updateConnectionStatus('Connected');
-                document.getElementById('chartLoading').style.display = 'none';
-                updatePriceDisplay();
-            }, 1000);
-        }
+            {digits.length > 0 && (
+              <>
+                <AnalysisCard title="Digit Frequency" subtitle={`${selectedLabel} — ${digits.length.toLocaleString()} ticks (expected: 10.0% each)`}>
+                  <div className="space-y-1.5">
+                    {frequency.map(f => <DigitBar key={f.digit} digit={f.digit} percentage={f.percentage} maxPercentage={maxFreqPct} />)}
+                  </div>
+                </AnalysisCard>
 
-        function updateConnectionStatus(status) {
-            document.getElementById('connectionStatus').textContent = status;
-        }
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <AnalysisCard title="Over / Under" subtitle="Probability per digit barrier">
+                    <OverUnderTable data={overUnder} />
+                  </AnalysisCard>
+                  <AnalysisCard title="Matches / Differs" subtitle="Match & differ probability per digit">
+                    <MatchDifferTable data={matchDiffer} />
+                  </AnalysisCard>
+                  <AnalysisCard title="Even / Odd" subtitle="Even vs odd distribution">
+                    <EvenOddDisplay data={evenOdd} />
+                  </AnalysisCard>
+                </div>
 
-        function updatePriceDisplay() {
-            document.getElementById('lastPrice').textContent = currentPrice.toFixed(2);
-            document.getElementById('currentPrice').textContent = currentPrice.toFixed(2);
-            
-            const priceElement = document.getElementById('currentPrice');
-            if (currentPrice > previousPrice) {
-                priceElement.className = 'price-value up';
-            } else if (currentPrice < previousPrice) {
-                priceElement.className = 'price-value down';
-            }
-            
-            // Update tick indicator
-            const indicator = document.getElementById('tickIndicator');
-            if (currentPrice > previousPrice) {
-                indicator.textContent = '↑';
-                indicator.className = 'tick-indicator up';
-            } else if (currentPrice < previousPrice) {
-                indicator.textContent = '↓';
-                indicator.className = 'tick-indicator down';
-            } else {
-                indicator.textContent = '-';
-                indicator.className = 'tick-indicator';
-            }
-        }
+                <AnalysisCard title="Streak Tracking" subtitle="Longest & current consecutive streaks">
+                  <StreakDisplay data={streaks} />
+                </AnalysisCard>
 
-        // Simulate tick updates
-        function simulateTickUpdate() {
-            setInterval(() => {
-                if (candles.length === 0) return;
-                
-                previousPrice = currentPrice;
-                
-                // Generate a small random price change
-                const change = (Math.random() - 0.5) * 10;
-                currentPrice += change;
-                
-                // Update last candle
-                const lastCandle = candles[candles.length - 1];
-                lastCandle.close = currentPrice;
-                lastCandle.high = Math.max(lastCandle.high, currentPrice);
-                lastCandle.low = Math.min(lastCandle.low, currentPrice);
-                
-                // Update tick count
-                tickCount++;
-                document.getElementById('tickCount').textContent = tickCount;
-                
-                // Update price display
-                updatePriceDisplay();
-                
-                // Update price change percentage
-                if (previousPrice > 0) {
-                    const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
-                    document.getElementById('priceChange').textContent = 
-                        `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
-                }
-                
-                // Redraw chart
-                drawChart();
-            }, 1000); // Update every second
-        }
+                <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first)">
+                  <div className="flex flex-wrap gap-1.5">
+                    {digits.slice(-50).reverse().map((d, i) => (
+                      <span key={i} className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold ${d % 2 === 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}`}>
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+                </AnalysisCard>
+              </>
+            )}
+          </main>
+        </div>
+      );
+    }
 
-        // Initialize
-        function init() {
-            initTheme();
-            initChart();
-            connectToDeriv();
-            simulateTickUpdate();
-            
-            // Event listeners
-            document.getElementById('candleBtn').addEventListener('click', () => {
-                chartType = 'candlestick';
-                document.getElementById('candleBtn').classList.add('active');
-                document.getElementById('lineBtn').classList.remove('active');
-                drawChart();
-            });
-            
-            document.getElementById('lineBtn').addEventListener('click', () => {
-                chartType = 'line';
-                document.getElementById('lineBtn').classList.add('active');
-                document.getElementById('candleBtn').classList.remove('active');
-                drawChart();
-            });
-            
-            document.querySelectorAll('.timeframe-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
-                    e.target.classList.add('active');
-                    activeTimeframe = parseInt(e.target.dataset.timeframe);
-                    
-                    // Regenerate candles for new timeframe
-                    candles = generateSampleCandles();
-                    currentPrice = candles[candles.length - 1]?.close || 0;
-                    drawChart();
-                });
-            });
-            
-            // Handle window resize
-            window.addEventListener('resize', () => {
-                if (canvas) {
-                    canvas.width = canvas.offsetWidth;
-                    canvas.height = canvas.offsetHeight;
-                    drawChart();
-                }
-            });
-            
-            // Update symbol info
-            document.getElementById('symbolName').textContent = SYMBOLS[activeSymbol]?.name || 'Unknown Symbol';
-        }
-
-        // Start everything
-        document.addEventListener('DOMContentLoaded', init);
-    </script>
+    // -------------------- RENDER --------------------
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Index />);
+  </script>
 </body>
 </html>
