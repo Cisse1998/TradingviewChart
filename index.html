@@ -211,7 +211,7 @@
       );
     }
 
-    // ---------- trading suggestions card (deviation from 10%) ----------
+    // ---------- trading suggestions card ----------
     function SuggestionCard({ frequency }) {
       if (!frequency || frequency.length === 0) return null;
       const deviations = frequency.map(f => ({ digit: f.digit, dev: f.percentage - 10 }));
@@ -277,10 +277,10 @@
 
     // ---------- NEW: Signal Scanner Component ----------
     function SignalScanner({ frequency, lastDigit }) {
-      const [signal, setSignal] = useState(null);
-      const prevTriggerRef = useRef(null);
+      const [scannerActive, setScannerActive] = useState(false);
+      const [lastSignal, setLastSignal] = useState(null);
 
-      // Compute prediction based on frequency
+      // Compute prediction based on frequency (uses last 1000 digits by default)
       const prediction = useMemo(() => {
         if (!frequency || frequency.length === 0) return null;
         // Find digit with highest percentage
@@ -295,29 +295,47 @@
         return { triggerDigit: max.digit, targetDigit: closest.digit, targetPct };
       }, [frequency]);
 
-      // When last digit changes, check for trigger
+      // When last digit changes and scanner is active, check for trigger
       useEffect(() => {
-        if (prediction && lastDigit === prediction.triggerDigit) {
-          // Avoid repeated signals for same trigger occurrence? We'll allow each new tick to trigger.
-          setSignal({ ...prediction, timestamp: Date.now() });
+        if (scannerActive && prediction && lastDigit === prediction.triggerDigit) {
+          setLastSignal({ ...prediction, timestamp: Date.now() });
         }
-      }, [lastDigit, prediction]);
+      }, [lastDigit, prediction, scannerActive]);
+
+      const toggleScanner = () => {
+        setScannerActive(prev => !prev);
+        setLastSignal(null); // clear old signal on toggle
+      };
 
       return (
-        <AnalysisCard title="🔔 Signal Scanner" subtitle="Predicts when most frequent digit appears">
+        <AnalysisCard title="🔔 Signal Scanner" subtitle="Tracks last 1000 digits – triggers when most frequent digit appears">
+          <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={toggleScanner}
+              className={`px-4 py-1.5 rounded text-sm font-semibold transition-colors ${
+                scannerActive 
+                  ? 'bg-destructive text-destructive-foreground hover:bg-destructive/80' 
+                  : 'bg-primary text-primary-foreground hover:bg-primary/80'
+              }`}
+            >
+              {scannerActive ? '⏹ Stop Scanner' : '▶ Start Scanner'}
+            </button>
+            {scannerActive && <span className="text-xs text-profit animate-pulse">● SCANNING</span>}
+          </div>
+
           {prediction ? (
             <div>
               <p className="text-sm">
                 <span className="text-muted-foreground">Trigger digit:</span>{' '}
                 <span className="font-bold text-highlight text-lg">{prediction.triggerDigit}</span>{' '}
-                <span className="text-muted-foreground">(highest {frequency.find(f => f.digit === prediction.triggerDigit)?.percentage.toFixed(1)}%)</span>
+                <span className="text-muted-foreground">({frequency.find(f => f.digit === prediction.triggerDigit)?.percentage.toFixed(1)}%)</span>
               </p>
               <p className="text-sm mt-1">
                 <span className="text-muted-foreground">Target digit:</span>{' '}
                 <span className="font-bold text-profit text-lg">{prediction.targetDigit}</span>{' '}
                 <span className="text-muted-foreground">(closest to {prediction.targetPct.toFixed(1)}%)</span>
               </p>
-              {signal && (
+              {lastSignal && scannerActive && (
                 <div className="mt-3 p-3 bg-profit/20 border border-profit rounded-md animate-pulse">
                   <span className="font-mono text-sm">⚡ SIGNAL — Digit {prediction.triggerDigit} appeared! Consider betting on {prediction.targetDigit}</span>
                 </div>
@@ -411,7 +429,7 @@
           <header className="border-b border-border px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Suggestions & History + Signal Scanner</h1>
+                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Suggestion & History + Signal Scanner</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
@@ -455,16 +473,35 @@
 
                 <SuggestionCard frequency={frequency} />
 
-                {/* NEW: Signal Scanner */}
+                {/* NEW: Signal Scanner (placed after suggestions) */}
                 <SignalScanner frequency={frequency} lastDigit={currentDigit} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <AnalysisCard title="Over / Under" subtitle="Probability per digit barrier"><OverUnderTable data={overUnder} /></AnalysisCard>
-                  <AnalysisCard title="Matches / Differs" subtitle="Match & differ probability per digit"><MatchDifferTable data={matchDiffer} /></AnalysisCard>
-                  <AnalysisCard title="Even / Odd" subtitle="Even vs odd distribution"><EvenOddDisplay data={evenOdd} /></AnalysisCard>
+                  <AnalysisCard 
+                    title="Over / Under" 
+                    subtitle={`Probability per digit barrier — Current price: ${lastPrice ? lastPrice : '--'}`}
+                  >
+                    <OverUnderTable data={overUnder} />
+                  </AnalysisCard>
+
+                  <AnalysisCard 
+                    title="Matches / Differs" 
+                    subtitle={`Match & differ probability per digit — Current price: ${lastPrice ? lastPrice : '--'}`}
+                  >
+                    <MatchDifferTable data={matchDiffer} />
+                  </AnalysisCard>
+
+                  <AnalysisCard 
+                    title="Even / Odd" 
+                    subtitle={`Even vs odd distribution — Current price: ${lastPrice ? lastPrice : '--'}`}
+                  >
+                    <EvenOddDisplay data={evenOdd} />
+                  </AnalysisCard>
                 </div>
 
-                <AnalysisCard title="Streak Tracking" subtitle="Longest & current consecutive streaks"><StreakDisplay data={streaks} /></AnalysisCard>
+                <AnalysisCard title="Streak Tracking" subtitle="Longest & current consecutive streaks">
+                  <StreakDisplay data={streaks} />
+                </AnalysisCard>
 
                 <AnalysisCard title="Frequency History (last 30 snapshots)" subtitle="Every 10 ticks — lines for most deviating digits">
                   <HistoryChart history={freqHistory} />
