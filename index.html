@@ -3,12 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚡ Deriv Digits Analysis Terminal</title>
-  <!-- Tailwind CSS (lightweight base) -->
+  <title>⚡ Deriv Digits Analysis Terminal + Suggestions & History</title>
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Custom theme variables & utility classes (matching the original design) -->
   <style>
-    /* dark theme variables & custom color utilities */
     :root {
       --background: 15 15 15;
       --card: 26 26 26;
@@ -48,10 +46,8 @@
       0%, 100% { opacity: 1; text-shadow: 0 0 5px rgb(var(--profit)); }
       50% { opacity: 0.5; text-shadow: 0 0 12px rgb(var(--profit)); }
     }
-    /* additional small tweaks */
     .font-mono { font-family: 'Menlo', 'Courier New', monospace; }
   </style>
-  <!-- React 18 & Babel standalone -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -60,10 +56,9 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    // -------------------- HOOKS & GLOBALS --------------------
     const { useState, useMemo, useCallback, useEffect, useRef } = React;
 
-    // -------------------- CONSTANTS (from derivWebSocket) --------------------
+    // ---------- constants ----------
     const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
     const VOLATILITY_SYMBOLS = [
       { value: "R_10", label: "Volatility 10 Index" },
@@ -78,20 +73,15 @@
       { value: "1HZ100V", label: "Volatility 100 (1s) Index" },
     ];
 
-    // -------------------- WEBSOCKET CONNECTION (derivWebSocket.js) --------------------
+    // ---------- websocket ----------
     function connectDeriv() {
       let ws = null;
       let subscriptionId = null;
 
       const subscribe = (symbol, onTick) => {
         if (ws) ws.close();
-
         ws = new WebSocket(DERIV_WS_URL);
-
-        ws.onopen = () => {
-          ws?.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-        };
-
+        ws.onopen = () => ws?.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
@@ -101,122 +91,67 @@
               const lastDigit = parseInt(price[price.length - 1], 10);
               onTick(lastDigit, price);
             }
-          } catch (e) { /* ignore */ }
+          } catch (e) { }
         };
-
         ws.onerror = () => console.error("Deriv WS error");
       };
-
-      const unsubscribe = () => {
-        if (ws && subscriptionId) {
-          ws.send(JSON.stringify({ forget: subscriptionId }));
-          subscriptionId = null;
-        }
-      };
-
-      const disconnect = () => {
-        unsubscribe();
-        if (ws) { ws.close(); ws = null; }
-      };
-
+      const unsubscribe = () => { if (ws && subscriptionId) { ws.send(JSON.stringify({ forget: subscriptionId })); subscriptionId = null; } };
+      const disconnect = () => { unsubscribe(); if (ws) { ws.close(); ws = null; } };
       return { subscribe, unsubscribe, disconnect };
     }
 
-    // -------------------- ANALYSIS FUNCTIONS (digitAnalysis.js) --------------------
+    // ---------- analysis functions ----------
     function computeDigitFrequency(digits) {
       const total = digits.length;
       const counts = Array(10).fill(0);
       digits.forEach(d => counts[d]++);
-      return counts.map((count, digit) => ({
-        digit, count,
-        percentage: total > 0 ? (count / total) * 100 : 0
-      }));
+      return counts.map((count, digit) => ({ digit, count, percentage: total > 0 ? (count / total) * 100 : 0 }));
     }
-
     function computeOverUnder(digits) {
       const total = digits.length;
       return Array.from({ length: 10 }, (_, target) => {
         const overCount = digits.filter(d => d > target).length;
         const underCount = digits.filter(d => d < target).length;
-        return {
-          digit: target,
-          overCount,
-          overPercentage: total > 0 ? (overCount / total) * 100 : 0,
-          underCount,
-          underPercentage: total > 0 ? (underCount / total) * 100 : 0,
-        };
+        return { digit: target, overCount, overPercentage: total > 0 ? (overCount / total) * 100 : 0, underCount, underPercentage: total > 0 ? (underCount / total) * 100 : 0 };
       });
     }
-
     function computeMatchDiffer(digits) {
       const total = digits.length;
       return Array.from({ length: 10 }, (_, target) => {
         const matchCount = digits.filter(d => d === target).length;
-        return {
-          digit: target,
-          matchCount,
-          matchPercentage: total > 0 ? (matchCount / total) * 100 : 0,
-          differCount: total - matchCount,
-          differPercentage: total > 0 ? ((total - matchCount) / total) * 100 : 0,
-        };
+        return { digit: target, matchCount, matchPercentage: total > 0 ? (matchCount / total) * 100 : 0, differCount: total - matchCount, differPercentage: total > 0 ? ((total - matchCount) / total) * 100 : 0 };
       });
     }
-
     function computeEvenOdd(digits) {
       const total = digits.length;
       const evenCount = digits.filter(d => d % 2 === 0).length;
-      return {
-        evenCount,
-        evenPercentage: total > 0 ? (evenCount / total) * 100 : 0,
-        oddCount: total - evenCount,
-        oddPercentage: total > 0 ? ((total - evenCount) / total) * 100 : 0,
-      };
+      return { evenCount, evenPercentage: total > 0 ? (evenCount / total) * 100 : 0, oddCount: total - evenCount, oddPercentage: total > 0 ? ((total - evenCount) / total) * 100 : 0 };
     }
-
     function computeStreaks(digits) {
       let curEven = 0, curOdd = 0, maxEven = 0, maxOdd = 0;
       const curDigit = Array(10).fill(0);
       const maxDigit = Array(10).fill(0);
-
       for (const d of digits) {
-        if (d % 2 === 0) {
-          curEven++; maxEven = Math.max(maxEven, curEven); curOdd = 0;
-        } else {
-          curOdd++; maxOdd = Math.max(maxOdd, curOdd); curEven = 0;
-        }
+        if (d % 2 === 0) { curEven++; maxEven = Math.max(maxEven, curEven); curOdd = 0; }
+        else { curOdd++; maxOdd = Math.max(maxOdd, curOdd); curEven = 0; }
         for (let i = 0; i < 10; i++) {
-          if (i === d) {
-            curDigit[i]++; maxDigit[i] = Math.max(maxDigit[i], curDigit[i]);
-          } else {
-            curDigit[i] = 0;
-          }
+          if (i === d) { curDigit[i]++; maxDigit[i] = Math.max(maxDigit[i], curDigit[i]); }
+          else { curDigit[i] = 0; }
         }
       }
-      return {
-        currentEvenStreak: curEven,
-        currentOddStreak: curOdd,
-        longestEvenStreak: maxEven,
-        longestOddStreak: maxOdd,
-        digitStreaks: Array.from({ length: 10 }, (_, i) => ({ digit: i, current: curDigit[i], longest: maxDigit[i] })),
-      };
+      return { currentEvenStreak: curEven, currentOddStreak: curOdd, longestEvenStreak: maxEven, longestOddStreak: maxOdd, digitStreaks: Array.from({ length: 10 }, (_, i) => ({ digit: i, current: curDigit[i], longest: maxDigit[i] })) };
     }
 
-    // -------------------- REACT COMPONENTS --------------------
-
-    // AnalysisCard (simple wrapper)
+    // ---------- components ----------
     function AnalysisCard({ title, subtitle, children }) {
       return (
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="mb-4">
-            <h3 className="font-semibold text-foreground text-sm uppercase tracking-wider">{title}</h3>
-            {subtitle && <p className="text-muted-foreground text-xs mt-1">{subtitle}</p>}
-          </div>
+          <div className="mb-4"><h3 className="font-semibold text-foreground text-sm uppercase tracking-wider">{title}</h3>{subtitle && <p className="text-muted-foreground text-xs mt-1">{subtitle}</p>}</div>
           {children}
         </div>
       );
     }
 
-    // DigitBar (with dynamic colors)
     function DigitBar({ digit, percentage, maxPercentage = 100, color = "highlight" }) {
       const width = Math.max((percentage / maxPercentage) * 100, 2);
       const isHigh = percentage > 12;
@@ -226,113 +161,115 @@
       return (
         <div className="flex items-center gap-3 group">
           <span className="font-mono text-sm w-6 text-muted-foreground font-semibold">{digit}</span>
-          <div className="flex-1 h-7 bg-secondary rounded-sm overflow-hidden relative">
-            <div className={`h-full rounded-sm transition-all duration-500 ${barColor}`} style={{ width: `${width}%` }} />
-          </div>
-          <span className={`font-mono text-sm w-16 text-right font-semibold ${isHigh ? "text-profit" : isLow ? "text-loss" : "text-foreground"}`}>
-            {percentage.toFixed(1)}%
-          </span>
+          <div className="flex-1 h-7 bg-secondary rounded-sm overflow-hidden relative"><div className={`h-full rounded-sm transition-all duration-500 ${barColor}`} style={{ width: `${width}%` }} /></div>
+          <span className={`font-mono text-sm w-16 text-right font-semibold ${isHigh ? "text-profit" : isLow ? "text-loss" : "text-foreground"}`}>{percentage.toFixed(1)}%</span>
         </div>
       );
     }
 
-    // EvenOddDisplay
     function EvenOddDisplay({ data }) {
       return (
         <div className="flex gap-4">
-          <div className="flex-1 bg-secondary rounded-lg p-4 text-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Even</div>
-            <div className="font-mono text-2xl font-bold text-profit">{data.evenPercentage.toFixed(1)}%</div>
-            <div className="text-xs text-muted-foreground mt-1">{data.evenCount} ticks</div>
-          </div>
-          <div className="flex-1 bg-secondary rounded-lg p-4 text-center">
-            <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Odd</div>
-            <div className="font-mono text-2xl font-bold text-loss">{data.oddPercentage.toFixed(1)}%</div>
-            <div className="text-xs text-muted-foreground mt-1">{data.oddCount} ticks</div>
-          </div>
+          <div className="flex-1 bg-secondary rounded-lg p-4 text-center"><div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Even</div><div className="font-mono text-2xl font-bold text-profit">{data.evenPercentage.toFixed(1)}%</div><div className="text-xs text-muted-foreground mt-1">{data.evenCount} ticks</div></div>
+          <div className="flex-1 bg-secondary rounded-lg p-4 text-center"><div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Odd</div><div className="font-mono text-2xl font-bold text-loss">{data.oddPercentage.toFixed(1)}%</div><div className="text-xs text-muted-foreground mt-1">{data.oddCount} ticks</div></div>
         </div>
       );
     }
 
-    // OverUnderTable
     function OverUnderTable({ data }) {
       return (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm font-mono">
-            <thead><tr className="text-muted-foreground text-xs uppercase tracking-wider"><th className="text-left py-2 px-2">Digit</th><th className="text-right py-2 px-2">Over %</th><th className="text-right py-2 px-2">Under %</th></tr></thead>
-            <tbody>
-              {data.map(row => (
-                <tr key={row.digit} className="border-t border-border hover:bg-secondary/50 transition-colors">
-                  <td className="py-2 px-2 font-semibold">{row.digit}</td>
-                  <td className="py-2 px-2 text-right text-profit">{row.overPercentage.toFixed(1)}%</td>
-                  <td className="py-2 px-2 text-right text-loss">{row.underPercentage.toFixed(1)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <div className="overflow-x-auto"><table className="w-full text-sm font-mono"><thead><tr className="text-muted-foreground text-xs uppercase tracking-wider"><th className="text-left py-2 px-2">Digit</th><th className="text-right py-2 px-2">Over %</th><th className="text-right py-2 px-2">Under %</th></tr></thead><tbody>{data.map(row => (<tr key={row.digit} className="border-t border-border hover:bg-secondary/50 transition-colors"><td className="py-2 px-2 font-semibold">{row.digit}</td><td className="py-2 px-2 text-right text-profit">{row.overPercentage.toFixed(1)}%</td><td className="py-2 px-2 text-right text-loss">{row.underPercentage.toFixed(1)}%</td></tr>))}</tbody></table></div>
       );
     }
 
-    // MatchDifferTable
     function MatchDifferTable({ data }) {
       return (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm font-mono">
-            <thead><tr className="text-muted-foreground text-xs uppercase tracking-wider"><th className="text-left py-2 px-2">Digit</th><th className="text-right py-2 px-2">Matches %</th><th className="text-right py-2 px-2">Differs %</th></tr></thead>
-            <tbody>
-              {data.map(row => (
-                <tr key={row.digit} className="border-t border-border hover:bg-secondary/50 transition-colors">
-                  <td className="py-2 px-2 font-semibold">{row.digit}</td>
-                  <td className="py-2 px-2 text-right text-highlight">{row.matchPercentage.toFixed(1)}%</td>
-                  <td className="py-2 px-2 text-right text-accent">{row.differPercentage.toFixed(1)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <div className="overflow-x-auto"><table className="w-full text-sm font-mono"><thead><tr className="text-muted-foreground text-xs uppercase tracking-wider"><th className="text-left py-2 px-2">Digit</th><th className="text-right py-2 px-2">Matches %</th><th className="text-right py-2 px-2">Differs %</th></tr></thead><tbody>{data.map(row => (<tr key={row.digit} className="border-t border-border hover:bg-secondary/50 transition-colors"><td className="py-2 px-2 font-semibold">{row.digit}</td><td className="py-2 px-2 text-right text-highlight">{row.matchPercentage.toFixed(1)}%</td><td className="py-2 px-2 text-right text-accent">{row.differPercentage.toFixed(1)}%</td></tr>))}</tbody></table></div>
       );
     }
 
-    // StreakDisplay
     function StreakDisplay({ data }) {
       return (
         <div className="space-y-4">
           <div className="flex gap-4">
-            <div className="flex-1 bg-secondary rounded-lg p-3 text-center">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Even Streak</div>
-              <div className="flex items-baseline justify-center gap-2">
-                <span className="font-mono text-xl font-bold text-profit">{data.longestEvenStreak}</span>
-                <span className="text-xs text-muted-foreground">longest</span>
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">current: <span className="font-mono text-foreground">{data.currentEvenStreak}</span></div>
+            <div className="flex-1 bg-secondary rounded-lg p-3 text-center"><div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Even Streak</div><div className="flex items-baseline justify-center gap-2"><span className="font-mono text-xl font-bold text-profit">{data.longestEvenStreak}</span><span className="text-xs text-muted-foreground">longest</span></div><div className="text-xs text-muted-foreground mt-1">current: <span className="font-mono text-foreground">{data.currentEvenStreak}</span></div></div>
+            <div className="flex-1 bg-secondary rounded-lg p-3 text-center"><div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Odd Streak</div><div className="flex items-baseline justify-center gap-2"><span className="font-mono text-xl font-bold text-loss">{data.longestOddStreak}</span><span className="text-xs text-muted-foreground">longest</span></div><div className="text-xs text-muted-foreground mt-1">current: <span className="font-mono text-foreground">{data.currentOddStreak}</span></div></div>
+          </div>
+          <div><div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Consecutive per Digit</div><div className="grid grid-cols-5 gap-2">{data.digitStreaks.map(s => (<div key={s.digit} className="bg-secondary rounded p-2 text-center"><div className="font-mono text-xs text-highlight font-bold mb-1">{s.digit}</div><div className="font-mono text-sm font-bold text-foreground">{s.longest}</div><div className="text-[10px] text-muted-foreground">now {s.current}</div></div>))}</div></div>
+        </div>
+      );
+    }
+
+    // ---------- new component: trading suggestions based on deviation from 10% ----------
+    function SuggestionCard({ frequency }) {
+      if (!frequency || frequency.length === 0) return null;
+      // compute deviation from expected 10%
+      const deviations = frequency.map(f => ({ digit: f.digit, dev: f.percentage - 10 }));
+      const sorted = [...deviations].sort((a, b) => Math.abs(b.dev) - Math.abs(a.dev));
+      const topOver = sorted.filter(d => d.dev > 0).slice(0, 3);  // most overrepresented
+      const topUnder = sorted.filter(d => d.dev < 0).slice(0, 3); // most underrepresented
+
+      return (
+        <AnalysisCard title="📈 Trading Suggestions" subtitle="Digits deviating most from 10% (potential mean reversion)">
+          <div className="flex flex-wrap gap-6">
+            <div className="flex-1 min-w-[200px]">
+              <h4 className="text-xs uppercase tracking-wider text-profit mb-2">🔴 Overrepresented (may sell)</h4>
+              {topOver.length === 0 ? <p className="text-muted-foreground text-sm">None</p> : 
+                topOver.map(d => <div key={d.digit} className="flex justify-between items-center text-sm py-1 border-b border-border/50"><span className="font-mono">Digit {d.digit}</span><span className="text-profit font-mono">+{d.dev.toFixed(1)}%</span></div>)}
             </div>
-            <div className="flex-1 bg-secondary rounded-lg p-3 text-center">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Odd Streak</div>
-              <div className="flex items-baseline justify-center gap-2">
-                <span className="font-mono text-xl font-bold text-loss">{data.longestOddStreak}</span>
-                <span className="text-xs text-muted-foreground">longest</span>
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">current: <span className="font-mono text-foreground">{data.currentOddStreak}</span></div>
+            <div className="flex-1 min-w-[200px]">
+              <h4 className="text-xs uppercase tracking-wider text-loss mb-2">🟢 Underrepresented (may buy)</h4>
+              {topUnder.length === 0 ? <p className="text-muted-foreground text-sm">None</p> : 
+                topUnder.map(d => <div key={d.digit} className="flex justify-between items-center text-sm py-1 border-b border-border/50"><span className="font-mono">Digit {d.digit}</span><span className="text-loss font-mono">{d.dev.toFixed(1)}%</span></div>)}
             </div>
           </div>
-          <div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Consecutive per Digit</div>
-            <div className="grid grid-cols-5 gap-2">
-              {data.digitStreaks.map(s => (
-                <div key={s.digit} className="bg-secondary rounded p-2 text-center">
-                  <div className="font-mono text-xs text-highlight font-bold mb-1">{s.digit}</div>
-                  <div className="font-mono text-sm font-bold text-foreground">{s.longest}</div>
-                  <div className="text-[10px] text-muted-foreground">now {s.current}</div>
-                </div>
-              ))}
-            </div>
+        </AnalysisCard>
+      );
+    }
+
+    // ---------- new component: frequency history sparkline (SVG) ----------
+    function HistoryChart({ history }) {
+      if (!history || history.length < 2) return (
+        <div className="text-muted-foreground text-sm py-4 text-center">Collecting history (snapshots every 10 ticks)...</div>
+      );
+
+      // we'll pick 3 most volatile digits based on latest deviation? for simplicity pick digits 0,5,9 as examples
+      // but better: pick the digits with highest current deviation
+      // Let's compute latest frequencies
+      const latest = history[history.length-1];
+      const devs = latest.map((pct, idx) => ({ digit: idx, dev: Math.abs(pct-10) })).sort((a,b) => b.dev - a.dev);
+      const topDigits = devs.slice(0,4).map(d => d.digit); // top 4 deviating digits
+
+      const colors = ["#10b981", "#ef4444", "#f59e0b", "#8b5cf6"]; // profit, loss, highlight, accent
+      const width = 400, height = 120;
+      const points = history.map((freqs, idx) => {
+        // x coordinate based on index
+        const x = (idx / (history.length-1)) * width;
+        return { x, freqs };
+      });
+
+      return (
+        <div className="w-full overflow-x-auto">
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto max-h-32" preserveAspectRatio="none">
+            {topDigits.map((digit, lineIdx) => {
+              const color = colors[lineIdx % colors.length];
+              const linePoints = points.map(p => `${p.x},${height - (p.freqs[digit] / 15) * height}`).join(' '); // scale: max freq ~15% -> height
+              return (
+                <g key={digit}>
+                  <polyline points={linePoints} stroke={color} strokeWidth="2" fill="none" />
+                  <text x="5" y={20 + lineIdx*18} fill={color} fontSize="10" className="font-mono">{`Digit ${digit}`}</text>
+                </g>
+              );
+            })}
+          </svg>
+          <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+            <span>earliest</span><span>latest</span>
           </div>
         </div>
       );
     }
 
-    // -------------------- MAIN APP (Index.tsx) --------------------
+    // ---------- main App ----------
     function Index() {
       const [maxTicks, setMaxTicks] = useState(1000);
       const [inputValue, setInputValue] = useState("1000");
@@ -341,6 +278,31 @@
       const [isLive, setIsLive] = useState(false);
       const [lastPrice, setLastPrice] = useState(null);
       const connectionRef = useRef(null);
+
+      // new states for history
+      const [freqHistory, setFreqHistory] = useState([]); // array of percentage arrays (10 numbers each)
+      const lastSnapshotLength = useRef(0); // to avoid duplicate snapshots
+
+      // update history on new digits (sample every 10 ticks)
+      useEffect(() => {
+        if (digits.length === 0) return;
+        // take snapshot every 10 ticks, but only if length increased enough
+        if (digits.length % 10 === 0 && digits.length > lastSnapshotLength.current) {
+          lastSnapshotLength.current = digits.length;
+          const freqs = computeDigitFrequency(digits).map(f => f.percentage);
+          setFreqHistory(prev => {
+            const updated = [...prev, freqs];
+            // keep last 30 snapshots
+            return updated.slice(-30);
+          });
+        }
+      }, [digits]);
+
+      // reset history when stream starts/stops or symbol changes
+      const resetHistory = useCallback(() => {
+        setFreqHistory([]);
+        lastSnapshotLength.current = 0;
+      }, []);
 
       const frequency = useMemo(() => computeDigitFrequency(digits), [digits]);
       const overUnder = useMemo(() => computeOverUnder(digits), [digits]);
@@ -353,6 +315,7 @@
         if (connectionRef.current) connectionRef.current.disconnect();
         setDigits([]);
         setLastPrice(null);
+        resetHistory();
         const conn = connectDeriv();
         connectionRef.current = conn;
         setIsLive(true);
@@ -364,12 +327,13 @@
             return next.length > maxTicks ? next.slice(next.length - maxTicks) : next;
           });
         });
-      }, [symbol, maxTicks]);
+      }, [symbol, maxTicks, resetHistory]);
 
       const stopStream = useCallback(() => {
         connectionRef.current?.disconnect();
         connectionRef.current = null;
         setIsLive(false);
+        // optionally keep history? we keep it for review
       }, []);
 
       useEffect(() => {
@@ -381,27 +345,22 @@
         setMaxTicks(count);
         setInputValue(String(count));
         setDigits(prev => (prev.length > count ? prev.slice(prev.length - count) : prev));
+        // history might be invalid after truncation; we reset for simplicity
+        resetHistory();
       };
 
       const selectedLabel = VOLATILITY_SYMBOLS.find(s => s.value === symbol)?.label || symbol;
 
       return (
         <div className="min-h-screen bg-background">
-          {/* Header */}
           <header className="border-b border-border px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-bold text-foreground tracking-tight">
-                  <span className="text-primary">●</span> Digit Analysis Terminal
-                </h1>
+                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Suggestion & History</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
-                {isLive && (
-                  <span className="flex items-center gap-1.5 text-profit">
-                    <span className="animate-pulse-glow">●</span> LIVE
-                  </span>
-                )}
+                {isLive && <span className="flex items-center gap-1.5 text-profit"><span className="animate-pulse-glow">●</span> LIVE</span>}
                 <span className="text-muted-foreground">{digits.length.toLocaleString()} ticks</span>
                 {lastPrice && <span className="text-highlight font-semibold">{lastPrice}</span>}
               </div>
@@ -409,28 +368,20 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-            {/* Controls */}
             <div className="bg-card border border-border rounded-lg p-4 flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
                 <label className="text-sm text-muted-foreground">Symbol:</label>
-                <select value={symbol} onChange={e => setSymbol(e.target.value)} disabled={isLive}
-                  className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50">
+                <select value={symbol} onChange={e => setSymbol(e.target.value)} disabled={isLive} className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50">
                   {VOLATILITY_SYMBOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm text-muted-foreground">Max ticks:</label>
-                <input type="number" value={inputValue} onChange={e => setInputValue(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleMaxTicksChange()} onBlur={handleMaxTicksChange}
-                  min={10} max={50000}
-                  className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground w-24 focus:outline-none focus:ring-1 focus:ring-primary" />
+                <input type="number" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => e.key === "Enter" && handleMaxTicksChange()} onBlur={handleMaxTicksChange} min={10} max={50000} className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground w-24 focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
               <div className="flex gap-2 ml-auto">
-                {!isLive ? (
-                  <button onClick={startStream} className="bg-primary text-primary-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">▶ Start Live</button>
-                ) : (
-                  <button onClick={stopStream} className="bg-destructive text-destructive-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">■ Stop</button>
-                )}
+                {!isLive ? <button onClick={startStream} className="bg-primary text-primary-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">▶ Start Live</button> :
+                <button onClick={stopStream} className="bg-destructive text-destructive-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">■ Stop</button>}
               </div>
             </div>
 
@@ -444,35 +395,27 @@
             {digits.length > 0 && (
               <>
                 <AnalysisCard title="Digit Frequency" subtitle={`${selectedLabel} — ${digits.length.toLocaleString()} ticks (expected: 10.0% each)`}>
-                  <div className="space-y-1.5">
-                    {frequency.map(f => <DigitBar key={f.digit} digit={f.digit} percentage={f.percentage} maxPercentage={maxFreqPct} />)}
-                  </div>
+                  <div className="space-y-1.5">{frequency.map(f => <DigitBar key={f.digit} digit={f.digit} percentage={f.percentage} maxPercentage={maxFreqPct} />)}</div>
                 </AnalysisCard>
 
+                {/* NEW: Trading Suggestions */}
+                <SuggestionCard frequency={frequency} />
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <AnalysisCard title="Over / Under" subtitle="Probability per digit barrier">
-                    <OverUnderTable data={overUnder} />
-                  </AnalysisCard>
-                  <AnalysisCard title="Matches / Differs" subtitle="Match & differ probability per digit">
-                    <MatchDifferTable data={matchDiffer} />
-                  </AnalysisCard>
-                  <AnalysisCard title="Even / Odd" subtitle="Even vs odd distribution">
-                    <EvenOddDisplay data={evenOdd} />
-                  </AnalysisCard>
+                  <AnalysisCard title="Over / Under" subtitle="Probability per digit barrier"><OverUnderTable data={overUnder} /></AnalysisCard>
+                  <AnalysisCard title="Matches / Differs" subtitle="Match & differ probability per digit"><MatchDifferTable data={matchDiffer} /></AnalysisCard>
+                  <AnalysisCard title="Even / Odd" subtitle="Even vs odd distribution"><EvenOddDisplay data={evenOdd} /></AnalysisCard>
                 </div>
 
-                <AnalysisCard title="Streak Tracking" subtitle="Longest & current consecutive streaks">
-                  <StreakDisplay data={streaks} />
+                <AnalysisCard title="Streak Tracking" subtitle="Longest & current consecutive streaks"><StreakDisplay data={streaks} /></AnalysisCard>
+
+                {/* NEW: Frequency History Chart */}
+                <AnalysisCard title="Frequency History (last 30 snapshots)" subtitle="Every 10 ticks — lines for most deviating digits">
+                  <HistoryChart history={freqHistory} />
                 </AnalysisCard>
 
                 <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first)">
-                  <div className="flex flex-wrap gap-1.5">
-                    {digits.slice(-50).reverse().map((d, i) => (
-                      <span key={i} className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold ${d % 2 === 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}`}>
-                        {d}
-                      </span>
-                    ))}
-                  </div>
+                  <div className="flex flex-wrap gap-1.5">{digits.slice(-50).reverse().map((d, i) => (<span key={i} className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold ${d % 2 === 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}`}>{d}</span>))}</div>
                 </AnalysisCard>
               </>
             )}
@@ -481,7 +424,6 @@
       );
     }
 
-    // -------------------- RENDER --------------------
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<Index />);
   </script>
