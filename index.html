@@ -597,6 +597,11 @@
 
                 <SignalScanner frequency={frequency} lastDigit={currentDigit} />
 
+                {/* Large price display */}
+                <div className="text-4xl md:text-5xl font-bold text-profit text-center py-4 border border-profit/30 rounded-lg bg-profit/5">
+                  {lastPrice ? lastPrice : '--'}
+                </div>
+
                 <RiseFallCard data={riseFall} />
 
                 <RecentMovements prices={prices} />
@@ -624,7 +629,6 @@
                   </AnalysisCard>
                 </div>
 
-                {/* Recent Digits placed right after the Even/Odd card */}
                 <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first)">
                   <div className="flex flex-wrap gap-1.5">
                     {digits.slice(-50).reverse().map((d, i) => (
