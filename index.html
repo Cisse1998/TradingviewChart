@@ -99,7 +99,7 @@
       '1HZ90V': 3,
       '1HZ100V': 2,
       'R_100': 2,
-      'JD10': 2,  // approximate, adjust if needed
+      'JD10': 2,
       'JD25': 2,
       'JD50': 2,
       'JD75': 2,
@@ -251,7 +251,7 @@
       };
     }
 
-    // ---------- components (unchanged) ----------
+    // ---------- components ----------
     function AnalysisCard({ title, subtitle, children }) {
       return (
         <div className="bg-card border border-border rounded-lg p-5">
@@ -603,12 +603,25 @@
       const selectedLabel = VOLATILITY_SYMBOLS.find(s => s.value === symbol)?.label || symbol;
       const currentDigit = digits.length > 0 ? digits[digits.length - 1] : null;
 
+      // Prepare recent digits with consecutive detection
+      const recentDigits = useMemo(() => digits.slice(-50).reverse(), [digits]);
+      const consecutiveFlags = useMemo(() => {
+        const flags = new Array(recentDigits.length).fill(false);
+        for (let i = 0; i < recentDigits.length; i++) {
+          if (i > 0 && recentDigits[i] === recentDigits[i-1]) {
+            flags[i] = true;
+            flags[i-1] = true;
+          }
+        }
+        return flags;
+      }, [recentDigits]);
+
       return (
         <div className="min-h-screen bg-background">
           <header className="border-b border-border px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Suggestion & History + Signal Scanner + Rise/Fall</h1>
+                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Suggestion & History + Signal Scanner + Rise/Fall + Consecutive Highlight</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
@@ -687,10 +700,14 @@
                   </AnalysisCard>
                 </div>
 
-                <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first)">
+                {/* Recent Digits card with consecutive highlight */}
+                <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first) — Yellow ring indicates consecutive same digit">
                   <div className="flex flex-wrap gap-1.5">
-                    {digits.slice(-50).reverse().map((d, i) => (
-                      <span key={i} className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold ${d % 2 === 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}`}>
+                    {recentDigits.map((d, i) => (
+                      <span key={i} className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold 
+                        ${d % 2 === 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}
+                        ${consecutiveFlags[i] ? "ring-2 ring-yellow-400 ring-inset" : ""}
+                      `}>
                         {d}
                       </span>
                     ))}
