@@ -61,16 +61,27 @@
     // ---------- constants ----------
     const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
     const VOLATILITY_SYMBOLS = [
+      // Volatility Indices (1s)
+      { value: "1HZ10V", label: "Volatility 10 (1s) Index" },
+      { value: "1HZ15V", label: "Volatility 15 (1s) Index" },
+      { value: "1HZ25V", label: "Volatility 25 (1s) Index" },
+      { value: "1HZ30V", label: "Volatility 30 (1s) Index" },
+      { value: "1HZ50V", label: "Volatility 50 (1s) Index" },
+      { value: "1HZ75V", label: "Volatility 75 (1s) Index" },
+      { value: "1HZ90V", label: "Volatility 90 (1s) Index" },
+      { value: "1HZ100V", label: "Volatility 100 (1s) Index" },
+      // Volatility Indices
       { value: "R_10", label: "Volatility 10 Index" },
       { value: "R_25", label: "Volatility 25 Index" },
       { value: "R_50", label: "Volatility 50 Index" },
       { value: "R_75", label: "Volatility 75 Index" },
       { value: "R_100", label: "Volatility 100 Index" },
-      { value: "1HZ10V", label: "Volatility 10 (1s) Index" },
-      { value: "1HZ25V", label: "Volatility 25 (1s) Index" },
-      { value: "1HZ50V", label: "Volatility 50 (1s) Index" },
-      { value: "1HZ75V", label: "Volatility 75 (1s) Index" },
-      { value: "1HZ100V", label: "Volatility 100 (1s) Index" },
+      // Jump Indices
+      { value: "J_10", label: "Jump 10 Index" },
+      { value: "J_25", label: "Jump 25 Index" },
+      { value: "J_50", label: "Jump 50 Index" },
+      { value: "J_75", label: "Jump 75 Index" },
+      { value: "J_100", label: "Jump 100 Index" },
     ];
 
     // ---------- helper: extract last digit from decimal part ----------
@@ -275,7 +286,7 @@
       );
     }
 
-    // ---------- NEW: Signal Scanner Component ----------
+    // ---------- Signal Scanner Component ----------
     function SignalScanner({ frequency, lastDigit }) {
       const [scannerActive, setScannerActive] = useState(false);
       const [lastSignal, setLastSignal] = useState(null);
@@ -473,7 +484,7 @@
 
                 <SuggestionCard frequency={frequency} />
 
-                {/* NEW: Signal Scanner (placed after suggestions) */}
+                {/* Signal Scanner */}
                 <SignalScanner frequency={frequency} lastDigit={currentDigit} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
