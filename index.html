@@ -426,7 +426,7 @@
       );
     }
 
-    // NEW: Recent Movements Card (separate from Recent Digits)
+    // Recent Movements Card (displays R/F/= for last 50 ticks)
     function RecentMovements({ prices }) {
       const getMovement = (index) => {
         if (index === 0 || prices.length < 2) return '—';
@@ -599,6 +599,9 @@
 
                 <RiseFallCard data={riseFall} />
 
+                {/* Recent Movements placed right after Rise/Fall card */}
+                <RecentMovements prices={prices} />
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <AnalysisCard 
                     title="Over / Under" 
@@ -630,7 +633,6 @@
                   <HistoryChart history={freqHistory} />
                 </AnalysisCard>
 
-                {/* Original Recent Digits card (unchanged) */}
                 <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first)">
                   <div className="flex flex-wrap gap-1.5">
                     {digits.slice(-50).reverse().map((d, i) => (
@@ -640,9 +642,6 @@
                     ))}
                   </div>
                 </AnalysisCard>
-
-                {/* NEW: Separate Recent Movements card */}
-                <RecentMovements prices={prices} />
               </>
             )}
           </main>
