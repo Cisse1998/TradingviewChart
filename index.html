@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚡ Deriv Digits Analysis Terminal + Suggestions & History + Signal Scanner + Rise/Fall + Consecutive Highlight</title>
+  <title>⚡ Deriv Digits Analysis Terminal + Suggestions & History + Signal Scanner + Rise/Fall + Consecutive Colors</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -599,6 +599,27 @@
       const selectedLabel = VOLATILITY_SYMBOLS.find(s => s.value === symbol)?.label || symbol;
       const currentDigit = digits.length > 0 ? digits[digits.length - 1] : null;
 
+      // Compute current consecutive streak length
+      const currentStreak = useMemo(() => {
+        if (digits.length === 0) return 0;
+        let streak = 1;
+        for (let i = digits.length - 2; i >= 0; i--) {
+          if (digits[i] === digits[digits.length - 1]) streak++;
+          else break;
+        }
+        return streak;
+      }, [digits]);
+
+      // Function to determine text color based on streak length
+      const getStreakColor = (streak) => {
+        if (streak === 1) return 'text-profit';
+        if (streak === 2) return 'text-white';
+        if (streak === 3) return 'text-blue-400';
+        if (streak === 4) return 'text-yellow-400';
+        if (streak >= 5) return 'text-purple-400';
+        return 'text-profit';
+      };
+
       // Prepare recent digits with consecutive detection
       const recentDigits = useMemo(() => digits.slice(-50).reverse(), [digits]);
       const consecutiveFlags = useMemo(() => {
@@ -612,15 +633,12 @@
         return flags;
       }, [recentDigits]);
 
-      // Determine if current digit is consecutive (for large display)
-      const isConsecutive = digits.length >= 2 && digits[digits.length-1] === digits[digits.length-2];
-
       return (
         <div className="min-h-screen bg-background">
           <header className="border-b border-border px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Suggestion & History + Signal Scanner + Rise/Fall + Consecutive Highlight</h1>
+                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Suggestion & History + Signal Scanner + Rise/Fall + Consecutive Colors</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
@@ -666,14 +684,14 @@
 
                 <SignalScanner frequency={frequency} lastDigit={currentDigit} />
 
-                {/* Large last digit display with consecutive highlight */}
-                <div className={`text-6xl md:text-7xl font-bold text-profit text-center py-4 border border-profit/30 rounded-lg bg-profit/5 
-                  ${isConsecutive ? 'ring-4 ring-yellow-400' : ''}
-                `}>
-                  {lastPrice ? getLastDigitFromPrice(lastPrice) : '--'}
+                {/* Large last digit display with dynamic color based on streak */}
+                <div className="text-6xl md:text-7xl font-bold text-center py-4 border border-profit/30 rounded-lg bg-profit/5">
+                  <span className={getStreakColor(currentStreak)}>
+                    {lastPrice ? getLastDigitFromPrice(lastPrice) : '--'}
+                  </span>
                 </div>
                 <div className="text-xs text-muted-foreground text-center mt-1">
-                  Last Digit {isConsecutive ? '(consecutive)' : ''}
+                  Last Digit {currentStreak > 1 ? `(streak: ${currentStreak})` : ''}
                 </div>
 
                 <RiseFallCard data={riseFall} />
@@ -703,7 +721,7 @@
                   </AnalysisCard>
                 </div>
 
-                {/* Recent Digits card with consecutive highlight */}
+                {/* Recent Digits card with consecutive highlight (yellow ring) */}
                 <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first) — Yellow ring indicates consecutive same digit">
                   <div className="flex flex-wrap gap-1.5">
                     {recentDigits.map((d, i) => (
