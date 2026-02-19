@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚡ Deriv Digits Analysis Terminal + Suggestions & History + Signal Scanner + Rise/Fall</title>
+  <title>⚡ Deriv Digits Analysis Terminal + Suggestions & History + Signal Scanner + Rise/Fall + Consecutive Highlight</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -127,14 +127,12 @@
           if (info.decimal_places !== undefined) {
             return info.decimal_places;
           } else if (info.pip_size) {
-            // pip_size is the smallest price change, e.g., 0.001 -> 3 decimals
             return Math.round(Math.log10(1 / info.pip_size));
           }
         }
       } catch (e) {
         console.error("Failed to fetch symbol details", e);
       }
-      // Fallback to hardcoded map or default 3
       return DECIMAL_FALLBACK[symbol] || 3;
     }
 
@@ -157,7 +155,7 @@
             const data = JSON.parse(event.data);
             if (data.tick) {
               subscriptionId = data.tick.id;
-              const rawPrice = data.tick.quote; // number
+              const rawPrice = data.tick.quote;
               onTick(rawPrice);
             }
           } catch (e) { }
@@ -186,7 +184,7 @@
       return { subscribe, unsubscribe, disconnect };
     }
 
-    // ---------- analysis functions (unchanged) ----------
+    // ---------- analysis functions ----------
     function computeDigitFrequency(digits) {
       const total = digits.length;
       const counts = Array(10).fill(0);
@@ -509,17 +507,16 @@
       const [maxTicks, setMaxTicks] = useState(1000);
       const [inputValue, setInputValue] = useState("1000");
       const [digits, setDigits] = useState([]);
-      const [prices, setPrices] = useState([]); // raw numbers for rise/fall
+      const [prices, setPrices] = useState([]);
       const [symbol, setSymbol] = useState("R_100");
       const [isLive, setIsLive] = useState(false);
-      const [lastPrice, setLastPrice] = useState(null); // formatted price string for display
-      const [decimalPlaces, setDecimalPlaces] = useState(3); // will be updated
+      const [lastPrice, setLastPrice] = useState(null);
+      const [decimalPlaces, setDecimalPlaces] = useState(3);
       const connectionRef = useRef(null);
 
       const [freqHistory, setFreqHistory] = useState([]);
       const lastSnapshotLength = useRef(0);
 
-      // Fetch decimal places when symbol changes
       useEffect(() => {
         let active = true;
         const load = async () => {
@@ -566,7 +563,6 @@
         setIsLive(true);
 
         conn.subscribe(symbol, (rawPrice) => {
-          // Format price with exact decimal places
           const formatted = rawPrice.toFixed(decimalPlaces);
           const digit = getLastDigitFromPrice(formatted);
           setLastPrice(formatted);
@@ -615,6 +611,9 @@
         }
         return flags;
       }, [recentDigits]);
+
+      // Determine if current digit is consecutive (for large display)
+      const isConsecutive = digits.length >= 2 && digits[digits.length-1] === digits[digits.length-2];
 
       return (
         <div className="min-h-screen bg-background">
@@ -667,11 +666,15 @@
 
                 <SignalScanner frequency={frequency} lastDigit={currentDigit} />
 
-                {/* Large last digit display */}
-                <div className="text-6xl md:text-7xl font-bold text-profit text-center py-4 border border-profit/30 rounded-lg bg-profit/5">
+                {/* Large last digit display with consecutive highlight */}
+                <div className={`text-6xl md:text-7xl font-bold text-profit text-center py-4 border border-profit/30 rounded-lg bg-profit/5 
+                  ${isConsecutive ? 'ring-4 ring-yellow-400' : ''}
+                `}>
                   {lastPrice ? getLastDigitFromPrice(lastPrice) : '--'}
                 </div>
-                <div className="text-xs text-muted-foreground text-center mt-1">Last Digit</div>
+                <div className="text-xs text-muted-foreground text-center mt-1">
+                  Last Digit {isConsecutive ? '(consecutive)' : ''}
+                </div>
 
                 <RiseFallCard data={riseFall} />
 
