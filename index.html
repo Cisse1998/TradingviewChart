@@ -574,7 +574,7 @@
       const borderColor = signal?.type === 'EVEN' ? 'border-profit' : signal?.type === 'ODD' ? 'border-loss' : signal?.type === 'BOTH' ? 'border-accent' : 'border-border';
 
       return (
-        <AnalysisCard title="🎯 Even/Odd Signal Scanner" subtitle="Triggers when ≥3 even or odd digits exceed 10.2% frequency (last 1000 ticks)">
+        <AnalysisCard title="🎯 Even/Odd Signal Scanner" subtitle="Analyzing market....2% frequency (last 1000 ticks)">
           <div className={`p-4 rounded-lg border-4 ${borderColor} transition-colors duration-300`}>
             {signal ? (
               <div className="text-center">
