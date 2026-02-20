@@ -184,13 +184,26 @@
       return { subscribe, unsubscribe, disconnect };
     }
 
-    // ---------- analysis functions ----------
+    // ---------- analysis functions (now using last 1000 ticks) ----------
     function computeDigitFrequency(digits) {
+      // This function is kept for other uses (like history snapshots)
       const total = digits.length;
       const counts = Array(10).fill(0);
       digits.forEach(d => counts[d]++);
       return counts.map((count, digit) => ({ digit, count, percentage: total > 0 ? (count / total) * 100 : 0 }));
     }
+
+    // New: compute frequency for last 1000 ticks
+    function computeFrequency1000(digits) {
+      const len = digits.length;
+      if (len === 0) return [];
+      const recent = len <= 1000 ? digits : digits.slice(len - 1000);
+      const counts = Array(10).fill(0);
+      recent.forEach(d => counts[d]++);
+      const total = recent.length;
+      return counts.map((count, digit) => ({ digit, count, percentage: (count / total) * 100 }));
+    }
+
     function computeOverUnder(digits) {
       const total = digits.length;
       return Array.from({ length: 10 }, (_, target) => {
@@ -334,7 +347,7 @@
       );
     }
 
-    // ---------- trading suggestions card ----------
+    // ---------- trading suggestions card (uses last 1000 ticks) ----------
     function SuggestionCard({ frequency }) {
       if (!frequency || frequency.length === 0) return null;
       const deviations = frequency.map(f => ({ digit: f.digit, dev: f.percentage - 10 }));
@@ -343,7 +356,7 @@
       const topUnder = sorted.filter(d => d.dev < 0).slice(0, 3);
 
       return (
-        <AnalysisCard title="📈 Trading Suggestions" subtitle="Digits deviating most from 10% (potential mean reversion)">
+        <AnalysisCard title="📈 Trading Suggestions" subtitle="Digits deviating most from 10% (last 1000 ticks)">
           <div className="flex flex-wrap gap-6">
             <div className="flex-1 min-w-[200px]">
               <h4 className="text-xs uppercase tracking-wider text-profit mb-2">🔴 Overrepresented (may sell)</h4>
@@ -398,7 +411,7 @@
       );
     }
 
-    // ---------- Signal Scanner Component (updated with two‑step subtraction) ----------
+    // ---------- Signal Scanner Component (uses last 1000 ticks internally) ----------
     function SignalScanner({ digits, lastDigit }) {
       const [scannerActive, setScannerActive] = useState(false);
       const [lastSignal, setLastSignal] = useState(null);
@@ -407,12 +420,10 @@
       const prediction = useMemo(() => {
         const len = digits.length;
         if (len === 0) return null;
-        // Take last W digits (or all if less)
         const recentDigits = len <= W ? digits : digits.slice(len - W);
         const counts = Array(10).fill(0);
         recentDigits.forEach(d => counts[d]++);
         const percentages = counts.map(c => (c / recentDigits.length) * 100);
-        // Find digit with highest percentage
         let maxIdx = 0;
         for (let i = 1; i < 10; i++) {
           if (percentages[i] > percentages[maxIdx]) maxIdx = i;
@@ -420,9 +431,7 @@
         const highestPct = percentages[maxIdx];
         const triggerDigit = maxIdx;
 
-        // First subtraction: target1 = highestPct - 0.5
         const target1 = highestPct - 0.5;
-        // Find digit closest to target1
         let closest1 = 0;
         let minDiff1 = Math.abs(percentages[0] - target1);
         for (let i = 1; i < 10; i++) {
@@ -434,9 +443,7 @@
         }
         const firstTargetPct = percentages[closest1];
 
-        // Second subtraction: target2 = firstTargetPct - 0.5
         const target2 = firstTargetPct - 0.5;
-        // Find digit closest to target2
         let closest2 = 0;
         let minDiff2 = Math.abs(percentages[0] - target2);
         for (let i = 1; i < 10; i++) {
@@ -514,7 +521,6 @@
         return '=';
       };
 
-      // Show last 50 movements (newest first)
       const last50 = prices.slice(-50).reverse();
       const last50Indices = prices.slice(-50).map((_, idx) => prices.length - 50 + idx).reverse();
 
@@ -539,9 +545,9 @@
       );
     }
 
-    // ---------- Even/Odd Signal Scanner ----------
+    // ---------- Even/Odd Signal Scanner (last 1000 ticks) ----------
     function EvenOddSignalScanner({ digits }) {
-      const W = 1000; // use last 1000 ticks
+      const W = 1000;
       const len = digits.length;
       const recentDigits = len <= W ? digits : digits.slice(len - W);
       const counts = Array(10).fill(0);
@@ -616,6 +622,7 @@
         if (digits.length === 0) return;
         if (digits.length % 10 === 0 && digits.length > lastSnapshotLength.current) {
           lastSnapshotLength.current = digits.length;
+          // For history we still use all digits (or you could use last 1000, but keep as is)
           const freqs = computeDigitFrequency(digits).map(f => f.percentage);
           setFreqHistory(prev => {
             const updated = [...prev, freqs];
@@ -629,13 +636,17 @@
         lastSnapshotLength.current = 0;
       }, []);
 
-      const frequency = useMemo(() => computeDigitFrequency(digits), [digits]);
+      // Compute frequency based on last 1000 ticks
+      const frequency1000 = useMemo(() => computeFrequency1000(digits), [digits]);
       const overUnder = useMemo(() => computeOverUnder(digits), [digits]);
       const matchDiffer = useMemo(() => computeMatchDiffer(digits), [digits]);
       const evenOdd = useMemo(() => computeEvenOdd(digits), [digits]);
       const streaks = useMemo(() => computeStreaks(digits), [digits]);
       const riseFall = useMemo(() => computeRiseFall(prices), [prices]);
-      const maxFreqPct = useMemo(() => Math.max(...frequency.map(f => f.percentage), 15), [frequency]);
+      const maxFreqPct = useMemo(() => {
+        if (frequency1000.length === 0) return 15;
+        return Math.max(...frequency1000.map(f => f.percentage), 15);
+      }, [frequency1000]);
 
       const startStream = useCallback(() => {
         if (connectionRef.current) connectionRef.current.disconnect();
@@ -718,6 +729,8 @@
         return flags;
       }, [recentDigits]);
 
+      const windowSizeDisplay = digits.length < 1000 ? digits.length : 1000;
+
       return (
         <div className="min-h-screen bg-background">
           <header className="border-b border-border px-6 py-4">
@@ -761,11 +774,11 @@
 
             {digits.length > 0 && (
               <>
-                <AnalysisCard title="Digit Frequency" subtitle={`${selectedLabel} — ${digits.length.toLocaleString()} ticks (expected: 10.0% each)`}>
-                  <div className="space-y-1.5">{frequency.map(f => <DigitBar key={f.digit} digit={f.digit} percentage={f.percentage} maxPercentage={maxFreqPct} />)}</div>
+                <AnalysisCard title="Digit Frequency" subtitle={`${selectedLabel} — last ${windowSizeDisplay} ticks (expected 10.0% each)`}>
+                  <div className="space-y-1.5">{frequency1000.map(f => <DigitBar key={f.digit} digit={f.digit} percentage={f.percentage} maxPercentage={maxFreqPct} />)}</div>
                 </AnalysisCard>
 
-                <SuggestionCard frequency={frequency} />
+                <SuggestionCard frequency={frequency1000} />
 
                 <SignalScanner digits={digits} lastDigit={currentDigit} />
 
