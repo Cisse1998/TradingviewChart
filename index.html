@@ -398,21 +398,34 @@
       );
     }
 
-    // ---------- Signal Scanner Component ----------
-    function SignalScanner({ frequency, lastDigit }) {
+    // ---------- Signal Scanner Component (updated to use last 1000 ticks) ----------
+    function SignalScanner({ digits, lastDigit }) {
       const [scannerActive, setScannerActive] = useState(false);
       const [lastSignal, setLastSignal] = useState(null);
 
+      // Use last 1000 digits (or all if less)
+      const windowedDigits = useMemo(() => digits.slice(-1000), [digits]);
+
       const prediction = useMemo(() => {
-        if (!frequency || frequency.length === 0) return null;
-        const max = frequency.reduce((a, b) => a.percentage > b.percentage ? a : b);
+        if (windowedDigits.length === 0) return null;
+        const W = windowedDigits.length; // actual window size (may be less than 1000 at start)
+        const counts = Array(10).fill(0);
+        windowedDigits.forEach(d => counts[d]++);
+        const frequencies = counts.map((count, digit) => ({
+          digit,
+          count,
+          percentage: (count / W) * 100  // using exact formula: (count / W) * 100
+        }));
+        // Find digit with highest percentage
+        const max = frequencies.reduce((a, b) => a.percentage > b.percentage ? a : b);
         const highestPct = max.percentage;
         const targetPct = highestPct - 0.5 - 0.5;
-        const closest = frequency.reduce((prev, curr) => {
+        // Find digit whose percentage is closest to targetPct
+        const closest = frequencies.reduce((prev, curr) => {
           return Math.abs(curr.percentage - targetPct) < Math.abs(prev.percentage - targetPct) ? curr : prev;
         });
         return { triggerDigit: max.digit, targetDigit: closest.digit, targetPct };
-      }, [frequency]);
+      }, [windowedDigits]);
 
       useEffect(() => {
         if (scannerActive && prediction && lastDigit === prediction.triggerDigit) {
@@ -446,12 +459,11 @@
               <p className="text-sm">
                 <span className="text-muted-foreground">Trigger digit:</span>{' '}
                 <span className="font-bold text-highlight text-lg">{prediction.triggerDigit}</span>{' '}
-                <span className="text-muted-foreground">({frequency.find(f => f.digit === prediction.triggerDigit)?.percentage.toFixed(1)}%)</span>
+                <span className="text-muted-foreground">({windowedDigits.length} ticks, {Math.round(prediction.targetPct * 10) / 10}% target)</span>
               </p>
               <p className="text-sm mt-1">
                 <span className="text-muted-foreground">Target digit:</span>{' '}
-                <span className="font-bold text-profit text-lg">{prediction.targetDigit}</span>{' '}
-                <span className="text-muted-foreground">(closest to {prediction.targetPct.toFixed(1)}%)</span>
+                <span className="font-bold text-profit text-lg">{prediction.targetDigit}</span>
               </p>
               {lastSignal && scannerActive && (
                 <div className="mt-3 p-3 bg-profit/20 border border-profit rounded-md animate-pulse">
@@ -502,7 +514,7 @@
       );
     }
 
-    // ---------- NEW: Even/Odd Signal Scanner ----------
+    // ---------- Even/Odd Signal Scanner ----------
     function EvenOddSignalScanner({ digits }) {
       const counts = useMemo(() => {
         const counts = Array(10).fill(0);
@@ -734,7 +746,8 @@
 
                 <SuggestionCard frequency={frequency} />
 
-                <SignalScanner frequency={frequency} lastDigit={currentDigit} />
+                {/* Updated Signal Scanner now receives digits array */}
+                <SignalScanner digits={digits} lastDigit={currentDigit} />
 
                 {/* Large last digit display with dynamic color based on streak */}
                 <div className="text-6xl md:text-7xl font-bold text-center py-4 border border-profit/30 rounded-lg bg-profit/5">
@@ -773,7 +786,7 @@
                   </AnalysisCard>
                 </div>
 
-                {/* NEW: Even/Odd Signal Scanner placed right after the Even/Odd card */}
+                {/* Even/Odd Signal Scanner */}
                 <EvenOddSignalScanner digits={digits} />
 
                 {/* Recent Digits card with consecutive highlight (yellow ring) */}
