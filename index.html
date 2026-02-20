@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digits Analysis Terminal + Suggestions & History + Signal Scanner + Rise/Fall + Even/Odd Scanner</title>
+  <title>Digits Analysis Terminal </title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -470,7 +470,7 @@
       };
 
       return (
-        <AnalysisCard title="🔔 Signal Scanner (last 1000 ticks)" subtitle="Two‑step scannnnig">
+        <AnalysisCard title="🔔 Signal Scanner (last 1000 ticks)" subtitle="Two‑step subtraction to find entry digit – triggers when highest digit appears">
           <div className="flex items-center justify-between mb-3">
             <button
               onClick={toggleScanner}
@@ -493,13 +493,13 @@
                 <span className="text-muted-foreground">({prediction.highestPct.toFixed(1)}%)</span>
               </p>
               <p className="text-sm mt-1">
-                <span className="text-muted-foreground">Scanned:</span>{' '}
+                <span className="text-muted-foreground">two-step scanning:</span>{' '}
                 <span className="font-bold text-profit text-lg">{prediction.targetDigit}</span>{' '}
                 <span className="text-muted-foreground">(probability {prediction.targetPct.toFixed(1)}%)</span>
               </p>
               {lastSignal && scannerActive && (
                 <div className="mt-3 p-3 bg-profit/20 border border-profit rounded-md animate-pulse">
-                  <span className="font-mono text-sm">⚡ SIGNAL — Entry Digit  {prediction.triggerDigit}        Prediction Digit  {prediction.targetDigit}</span>
+                  <span className="font-mono text-sm">⚡ SIGNAL — Entry Digit {prediction.triggerDigit} Prediction is {prediction.targetDigit}</span>
                 </div>
               )}
             </div>
