@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digits Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions + Circle Display</title>
+  <title>Digits Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions + Arc Display</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -257,15 +257,11 @@
       );
     }
 
-    // Updated DigitCircle with pointer below and colored dot below pointer
+    // Updated DigitCircle: default border, pointer below, arc (green/red) below pointer
     function DigitCircle({ digit, percentage, isHighest, isLowest, isCurrent }) {
-      let borderColor = 'border-border';
-      if (isHighest) borderColor = 'border-profit';
-      if (isLowest) borderColor = 'border-loss';
-      // if both highest and lowest (all equal), profit takes precedence (green)
       return (
         <div className="flex flex-col items-center mx-1">
-          <div className={`w-16 h-16 rounded-full border-4 ${borderColor} flex flex-col items-center justify-center bg-secondary`}>
+          <div className="w-16 h-16 rounded-full border-4 border-border flex flex-col items-center justify-center bg-secondary">
             <span className="text-xl font-bold">{digit}</span>
             <span className="text-xs">{percentage.toFixed(1)}%</span>
           </div>
@@ -273,8 +269,9 @@
             <div className="text-white text-sm leading-3 mt-1">▲</div>
           )}
           {!isCurrent && <div className="h-4" />} {/* spacer to keep alignment */}
+          {/* Arc: a thin rounded line */}
           {(isHighest || isLowest) && (
-            <div className={`w-2 h-2 rounded-full mt-1 ${isHighest ? 'bg-profit' : 'bg-loss'}`} />
+            <div className={`w-6 h-1 rounded-full mt-1 ${isHighest ? 'bg-profit' : 'bg-loss'}`} />
           )}
           {!isHighest && !isLowest && <div className="h-2 mt-1" />}
         </div>
@@ -826,7 +823,7 @@
           <header className="border-b border-border px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions + Circle Display</h1>
+                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions + Arc Display</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
