@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digits Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions + Arc Display</title>
+  <title>Digits Analysis Terminal + AI Prediction + Configurable Even/Odd Scanner + Trade Predictions + Arc Display</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -257,17 +257,14 @@
       );
     }
 
-    // Updated DigitCircle: arc inside the circle
+    // DigitCircle with arc inside
     function DigitCircle({ digit, percentage, isHighest, isLowest, isCurrent }) {
       return (
         <div className="flex flex-col items-center mx-1">
           <div className="relative w-16 h-16">
-            {/* Base circle with neutral border */}
             <div className="absolute inset-0 rounded-full border-4 border-border bg-secondary"></div>
-            {/* Colored arc inside (at bottom) */}
             {isHighest && <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-1 bg-profit rounded-full z-0"></div>}
             {isLowest && <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-1 bg-loss rounded-full z-0"></div>}
-            {/* Digit and percentage */}
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
               <span className="text-xl font-bold">{digit}</span>
               <span className="text-xs">{percentage.toFixed(1)}%</span>
@@ -352,44 +349,6 @@
             </div>
           </div>
         </AnalysisCard>
-      );
-    }
-
-    // ---------- history chart ----------
-    function HistoryChart({ history }) {
-      if (!history || history.length < 2) return (
-        <div className="text-muted-foreground text-sm py-4 text-center">Collecting history (snapshots every 10 ticks)...</div>
-      );
-
-      const latest = history[history.length-1];
-      const devs = latest.map((pct, idx) => ({ digit: idx, dev: Math.abs(pct-10) })).sort((a,b) => b.dev - a.dev);
-      const topDigits = devs.slice(0,4).map(d => d.digit);
-
-      const colors = ["#10b981", "#ef4444", "#f59e0b", "#8b5cf6"];
-      const width = 400, height = 120;
-      const points = history.map((freqs, idx) => {
-        const x = (idx / (history.length-1)) * width;
-        return { x, freqs };
-      });
-
-      return (
-        <div className="w-full overflow-x-auto">
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto max-h-32" preserveAspectRatio="none">
-            {topDigits.map((digit, lineIdx) => {
-              const color = colors[lineIdx % colors.length];
-              const linePoints = points.map(p => `${p.x},${height - (p.freqs[digit] / 15) * height}`).join(' ');
-              return (
-                <g key={digit}>
-                  <polyline points={linePoints} stroke={color} strokeWidth="2" fill="none" />
-                  <text x="5" y={20 + lineIdx*18} fill={color} fontSize="10" className="font-mono">{`Digit ${digit}`}</text>
-                </g>
-              );
-            })}
-          </svg>
-          <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-            <span>earliest</span><span>latest</span>
-          </div>
-        </div>
       );
     }
 
@@ -680,6 +639,176 @@
       );
     }
 
+    // ---------- AI-Enhanced Digit Prediction Component ----------
+    function AIPrediction({ digits }) {
+      const [lastDigit, setLastDigit] = useState(null);
+      useEffect(() => {
+        if (digits.length > 0) setLastDigit(digits[digits.length - 1]);
+      }, [digits]);
+
+      const prediction = useMemo(() => {
+        const len = digits.length;
+        if (len < 100) return null; // need at least 100 ticks for micro window
+
+        // Helper to get counts for a window size
+        const getCounts = (windowSize) => {
+          const start = Math.max(0, len - windowSize);
+          const slice = digits.slice(start, len);
+          const counts = Array(10).fill(0);
+          slice.forEach(d => counts[d]++);
+          return counts;
+        };
+
+        const counts100 = getCounts(100);
+        const counts500 = getCounts(500);
+        const counts1000 = getCounts(1000);
+
+        const total100 = Math.min(100, len);
+        const total500 = Math.min(500, len);
+        const total1000 = Math.min(1000, len);
+
+        // Weighted frequency score per digit
+        const weighted = Array(10).fill(0);
+        for (let i = 0; i < 10; i++) {
+          weighted[i] = 0.5 * (counts100[i] / total100) + 0.3 * (counts500[i] / total500) + 0.2 * (counts1000[i] / total1000);
+        }
+
+        // Entropy using last 1000 ticks
+        const p = counts1000.map(c => c / total1000);
+        let entropy = 0;
+        for (let i = 0; i < 10; i++) {
+          if (p[i] > 0) entropy -= p[i] * Math.log(p[i]);
+        }
+        const entropyOk = entropy < 2.25;
+
+        // Transition matrix from last 1000 ticks
+        const transition = Array(10).fill(null).map(() => Array(10).fill(0));
+        const transCounts = Array(10).fill(null).map(() => Array(10).fill(0));
+        const startIdx = Math.max(0, len - 1000);
+        for (let i = startIdx; i < len - 1; i++) {
+          const from = digits[i];
+          const to = digits[i + 1];
+          transCounts[from][to]++;
+        }
+        for (let from = 0; from < 10; from++) {
+          const totalFrom = transCounts[from].reduce((a, b) => a + b, 0);
+          if (totalFrom > 0) {
+            for (let to = 0; to < 10; to++) {
+              transition[from][to] = transCounts[from][to] / totalFrom;
+            }
+          } else {
+            // if no transitions, assume uniform? But we'll just keep zeros.
+          }
+        }
+
+        // Final score = weighted * transition from last digit
+        const finalScore = Array(10).fill(0);
+        if (lastDigit !== null) {
+          const trans = transition[lastDigit];
+          for (let j = 0; j < 10; j++) {
+            finalScore[j] = weighted[j] * (trans[j] || 0); // if no transition, zero
+          }
+        } else {
+          // fallback to weighted only
+          for (let j = 0; j < 10; j++) {
+            finalScore[j] = weighted[j];
+          }
+        }
+
+        const maxScore = Math.max(...finalScore);
+        const meanScore = finalScore.reduce((a, b) => a + b, 0) / 10;
+        const confidence = maxScore - meanScore;
+        const confidenceOk = confidence >= 0.04;
+
+        // Determine best contract
+        let tradeType = 'WAIT';
+        let target = null;
+        if (entropyOk && confidenceOk) {
+          // Check conditions in order
+          // 1. Any digit > 18% in weighted frequency?
+          for (let i = 0; i < 10; i++) {
+            if (weighted[i] > 0.18) {
+              tradeType = `Match Digit ${i}`;
+              target = i;
+              break;
+            }
+          }
+          if (tradeType === 'WAIT') {
+            // 2. Even sum > 55%
+            const evenSum = weighted[0] + weighted[2] + weighted[4] + weighted[6] + weighted[8];
+            if (evenSum > 0.55) {
+              tradeType = 'Even';
+            }
+            // 3. Odd sum > 55%
+            else {
+              const oddSum = weighted[1] + weighted[3] + weighted[5] + weighted[7] + weighted[9];
+              if (oddSum > 0.55) {
+                tradeType = 'Odd';
+              }
+              else {
+                // 4. Max digit in 0-4
+                const maxDigit = finalScore.indexOf(maxScore);
+                if (maxDigit <= 4) {
+                  tradeType = 'Digit Under 5';
+                } else {
+                  tradeType = 'Digit Over 4';
+                }
+              }
+            }
+          }
+        }
+
+        return {
+          weighted,
+          entropy: entropy.toFixed(3),
+          entropyOk,
+          confidence: confidence.toFixed(4),
+          confidenceOk,
+          tradeType,
+          finalScore,
+        };
+      }, [digits, lastDigit]);
+
+      if (!prediction) {
+        return (
+          <AnalysisCard title="🧠 AI-Enhanced Digit Prediction" subtitle="Waiting for enough data (≥100 ticks)">
+            <div className="text-center text-muted-foreground py-4">Collecting data...</div>
+          </AnalysisCard>
+        );
+      }
+
+      return (
+        <AnalysisCard title="🧠 AI-Enhanced Digit Prediction" subtitle="Multi‑window + entropy + transitions + confidence gate">
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-muted-foreground">Entropy: </span>
+                <span className={prediction.entropyOk ? 'text-profit' : 'text-loss'}>
+                  {prediction.entropy} {prediction.entropyOk ? '✓' : '✗'}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Confidence: </span>
+                <span className={prediction.confidenceOk ? 'text-profit' : 'text-loss'}>
+                  {prediction.confidence} {prediction.confidenceOk ? '✓' : '✗'}
+                </span>
+              </div>
+            </div>
+            <div className="text-center text-lg font-bold">
+              {prediction.tradeType === 'WAIT' ? (
+                <span className="text-yellow-400">⏳ WAIT</span>
+              ) : (
+                <span className="text-profit">✅ {prediction.tradeType}</span>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Weighted scores: {prediction.weighted.map((w, i) => `${i}:${(w*100).toFixed(1)}%`).join('  ')}
+            </div>
+          </div>
+        </AnalysisCard>
+      );
+    }
+
     // ---------- main App ----------
     function Index() {
       const [maxTicks, setMaxTicks] = useState(1000);
@@ -827,7 +956,7 @@
           <header className="border-b border-border px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions + Arc Display</h1>
+                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + AI Prediction + Configurable Even/Odd Scanner + Trade Predictions + Arc Display</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
@@ -963,11 +1092,10 @@
                   </div>
                 </AnalysisCard>
 
-                <TradePredictions frequency={frequency1000} overUnder={overUnder} evenOdd={evenOdd} riseFall={riseFall} />
+                {/* AI Prediction Card */}
+                <AIPrediction digits={digits} />
 
-                <AnalysisCard title="Frequency History (last 30 snapshots)" subtitle="Every 10 ticks — lines for most deviating digits">
-                  <HistoryChart history={freqHistory} />
-                </AnalysisCard>
+                <TradePredictions frequency={frequency1000} overUnder={overUnder} evenOdd={evenOdd} riseFall={riseFall} />
               </>
             )}
           </main>
