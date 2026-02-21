@@ -592,7 +592,7 @@
       );
     }
 
-    // ---------- NEW: Trade Predictions Panel ----------
+    // ---------- Trade Predictions Panel ----------
     function TradePredictions({ frequency, overUnder, evenOdd, riseFall }) {
       if (!frequency || frequency.length === 0) return null;
 
@@ -944,9 +944,6 @@
 
                 <EvenOddSignalScanner digits={digits} threshold={threshold} minCount={minCount} />
 
-                {/* NEW: Trade Predictions Panel */}
-                <TradePredictions frequency={frequency1000} overUnder={overUnder} evenOdd={evenOdd} riseFall={riseFall} />
-
                 <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first) — Yellow ring indicates consecutive same digit">
                   <div className="flex flex-wrap gap-1.5">
                     {recentDigits.map((d, i) => (
@@ -963,6 +960,9 @@
                 <AnalysisCard title="Streak Tracking" subtitle="Longest & current consecutive streaks">
                   <StreakDisplay data={streaks} />
                 </AnalysisCard>
+
+                {/* Trade Predictions placed here, below Streak Tracking */}
+                <TradePredictions frequency={frequency1000} overUnder={overUnder} evenOdd={evenOdd} riseFall={riseFall} />
 
                 <AnalysisCard title="Frequency History (last 30 snapshots)" subtitle="Every 10 ticks — lines for most deviating digits">
                   <HistoryChart history={freqHistory} />
