@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digits Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions + Trade History</title>
+  <title>Digits Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -411,7 +411,9 @@
     }
 
     // ---------- Signal Scanner Component (uses last 1000 ticks internally) ----------
-    function SignalScanner({ digits, lastDigit, scannerActive, onToggle, onSignal }) {
+    function SignalScanner({ digits, lastDigit }) {
+      const [scannerActive, setScannerActive] = useState(false);
+      const [lastSignal, setLastSignal] = useState(null);
       const W = 1000; // window size
 
       const prediction = useMemo(() => {
@@ -455,18 +457,22 @@
         return { triggerDigit, targetDigit, highestPct, target1, firstTargetPct, target2, targetPct: target2 };
       }, [digits]);
 
-      // Signal trigger effect
       useEffect(() => {
         if (scannerActive && prediction && lastDigit === prediction.triggerDigit) {
-          onSignal(prediction);
+          setLastSignal({ ...prediction, timestamp: Date.now() });
         }
-      }, [lastDigit, prediction, scannerActive, onSignal]);
+      }, [lastDigit, prediction, scannerActive]);
+
+      const toggleScanner = () => {
+        setScannerActive(prev => !prev);
+        setLastSignal(null);
+      };
 
       return (
         <AnalysisCard title="🔔 Signal Scanner (last 1000 ticks)" subtitle="Exact digit prediction is shown below">
           <div className="flex items-center justify-between mb-3">
             <button
-              onClick={onToggle}
+              onClick={toggleScanner}
               className={`px-4 py-1.5 rounded text-sm font-semibold transition-colors ${
                 scannerActive 
                   ? 'bg-destructive text-destructive-foreground hover:bg-destructive/80' 
@@ -490,6 +496,11 @@
                 <span className="font-bold text-profit text-lg">{prediction.targetDigit}</span>{' '}
                 <span className="text-muted-foreground">(probability {prediction.targetPct.toFixed(1)}%)</span>
               </p>
+              {lastSignal && scannerActive && (
+                <div className="mt-3 p-3 bg-profit/20 border border-profit rounded-md animate-pulse">
+                  <span className="font-mono text-sm">⚡ SIGNAL — Entry Digit {prediction.triggerDigit} Prediction is {prediction.targetDigit}</span>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-muted-foreground">Waiting for enough data...</p>
@@ -695,56 +706,6 @@
       );
     }
 
-    // ---------- Trade History Log Component ----------
-    function TradeHistoryLog({ history }) {
-      const formatTime = (timestamp) => {
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      };
-
-      return (
-        <AnalysisCard title="📜 Trade History Log" subtitle="Recent signals from the scanner">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm font-mono">
-              <thead>
-                <tr className="text-muted-foreground text-xs uppercase tracking-wider">
-                  <th className="text-left py-2 px-2">Time</th>
-                  <th className="text-left py-2 px-2">Trigger</th>
-                  <th className="text-left py-2 px-2">Predicted</th>
-                  <th className="text-left py-2 px-2">Outcome</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.length === 0 ? (
-                  <tr><td colSpan="4" className="text-center text-muted-foreground py-4">No signals yet</td></tr>
-                ) : (
-                  history.slice().reverse().map((entry) => (
-                    <tr key={entry.id} className="border-t border-border">
-                      <td className="py-2 px-2 text-muted-foreground">{formatTime(entry.timestamp)}</td>
-                      <td className="py-2 px-2 font-semibold text-highlight">{entry.triggerDigit}</td>
-                      <td className="py-2 px-2 font-semibold text-profit">{entry.predictedDigit}</td>
-                      <td className="py-2 px-2">
-                        {entry.outcome === null ? (
-                          <span className="text-yellow-400 flex items-center">
-                            <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse mr-2"></span>
-                            Pending
-                          </span>
-                        ) : entry.outcome === 'win' ? (
-                          <span className="text-profit">Win ✓</span>
-                        ) : (
-                          <span className="text-loss">Loss ✗</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </AnalysisCard>
-      );
-    }
-
     // ---------- main App ----------
     function Index() {
       const [maxTicks, setMaxTicks] = useState(1000);
@@ -760,13 +721,6 @@
       // Configurable parameters for Even/Odd scanner
       const [threshold, setThreshold] = useState(10.2);
       const [minCount, setMinCount] = useState(3);
-
-      // Signal scanner state
-      const [scannerActive, setScannerActive] = useState(false);
-
-      // Trade history
-      const [tradeHistory, setTradeHistory] = useState([]);
-      const pendingEntryId = useRef(null);
 
       const [freqHistory, setFreqHistory] = useState([]);
       const lastSnapshotLength = useRef(0);
@@ -815,7 +769,6 @@
         setPrices([]);
         setLastPrice(null);
         resetHistory();
-        setTradeHistory([]); // clear history on new stream
         const conn = connectDeriv();
         connectionRef.current = conn;
         setIsLive(true);
@@ -839,7 +792,6 @@
         connectionRef.current?.disconnect();
         connectionRef.current = null;
         setIsLive(false);
-        setScannerActive(false); // stop scanner when stream stops
       }, []);
 
       useEffect(() => {
@@ -854,34 +806,6 @@
         setPrices(prev => (prev.length > count ? prev.slice(prev.length - count) : prev));
         resetHistory();
       };
-
-      // Handle signal from scanner
-      const handleSignal = useCallback((prediction) => {
-        const newEntry = {
-          id: Date.now() + Math.random(),
-          timestamp: Date.now(),
-          triggerDigit: prediction.triggerDigit,
-          predictedDigit: prediction.targetDigit,
-          outcome: null,
-        };
-        setTradeHistory(prev => [...prev, newEntry]);
-        pendingEntryId.current = newEntry.id;
-      }, []);
-
-      // Update outcome when a new digit arrives
-      useEffect(() => {
-        if (pendingEntryId.current && digits.length > 0) {
-          const latestDigit = digits[digits.length - 1];
-          setTradeHistory(prev => prev.map(entry => {
-            if (entry.id === pendingEntryId.current) {
-              const outcome = latestDigit === entry.predictedDigit ? 'win' : 'loss';
-              return { ...entry, outcome };
-            }
-            return entry;
-          }));
-          pendingEntryId.current = null;
-        }
-      }, [digits]);
 
       const selectedLabel = VOLATILITY_SYMBOLS.find(s => s.value === symbol)?.label || symbol;
       const currentDigit = digits.length > 0 ? digits[digits.length - 1] : null;
@@ -924,7 +848,7 @@
           <header className="border-b border-border px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions + Trade History</h1>
+                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Configurable Even/Odd Scanner + Trade Predictions</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
@@ -979,13 +903,7 @@
 
                 <SuggestionCard frequency={frequency1000} />
 
-                <SignalScanner 
-                  digits={digits} 
-                  lastDigit={currentDigit} 
-                  scannerActive={scannerActive}
-                  onToggle={() => setScannerActive(prev => !prev)}
-                  onSignal={handleSignal}
-                />
+                <SignalScanner digits={digits} lastDigit={currentDigit} />
 
                 {/* Large last digit display with dynamic color based on streak */}
                 <div className="text-6xl md:text-7xl font-bold text-center py-4 border border-profit/30 rounded-lg bg-profit/5">
@@ -1045,9 +963,6 @@
 
                 {/* Trade Predictions placed here, below Streak Tracking */}
                 <TradePredictions frequency={frequency1000} overUnder={overUnder} evenOdd={evenOdd} riseFall={riseFall} />
-
-                {/* Trade History Log */}
-                <TradeHistoryLog history={tradeHistory} />
 
                 <AnalysisCard title="Frequency History (last 30 snapshots)" subtitle="Every 10 ticks — lines for most deviating digits">
                   <HistoryChart history={freqHistory} />
