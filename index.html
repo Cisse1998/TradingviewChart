@@ -223,20 +223,6 @@
       const evenCount = digits.filter(d => d % 2 === 0).length;
       return { evenCount, evenPercentage: total > 0 ? (evenCount / total) * 100 : 0, oddCount: total - evenCount, oddPercentage: total > 0 ? ((total - evenCount) / total) * 100 : 0 };
     }
-    function computeStreaks(digits) {
-      let curEven = 0, curOdd = 0, maxEven = 0, maxOdd = 0;
-      const curDigit = Array(10).fill(0);
-      const maxDigit = Array(10).fill(0);
-      for (const d of digits) {
-        if (d % 2 === 0) { curEven++; maxEven = Math.max(maxEven, curEven); curOdd = 0; }
-        else { curOdd++; maxOdd = Math.max(maxOdd, curOdd); curEven = 0; }
-        for (let i = 0; i < 10; i++) {
-          if (i === d) { curDigit[i]++; maxDigit[i] = Math.max(maxDigit[i], curDigit[i]); }
-          else { curDigit[i] = 0; }
-        }
-      }
-      return { currentEvenStreak: curEven, currentOddStreak: curOdd, longestEvenStreak: maxEven, longestOddStreak: maxOdd, digitStreaks: Array.from({ length: 10 }, (_, i) => ({ digit: i, current: curDigit[i], longest: maxDigit[i] })) };
-    }
 
     // Rise/Fall analysis
     function computeRiseFall(prices) {
@@ -304,18 +290,6 @@
     function MatchDifferTable({ data }) {
       return (
         <div className="overflow-x-auto"><table className="w-full text-sm font-mono"><thead><tr className="text-muted-foreground text-xs uppercase tracking-wider"><th className="text-left py-2 px-2">Digit</th><th className="text-right py-2 px-2">Matches %</th><th className="text-right py-2 px-2">Differs %</th></tr></thead><tbody>{data.map(row => (<tr key={row.digit} className="border-t border-border hover:bg-secondary/50 transition-colors"><td className="py-2 px-2 font-semibold">{row.digit}</td><td className="py-2 px-2 text-right text-highlight">{row.matchPercentage.toFixed(1)}%</td><td className="py-2 px-2 text-right text-accent">{row.differPercentage.toFixed(1)}%</td></tr>))}</tbody></table></div>
-      );
-    }
-
-    function StreakDisplay({ data }) {
-      return (
-        <div className="space-y-4">
-          <div className="flex gap-4">
-            <div className="flex-1 bg-secondary rounded-lg p-3 text-center"><div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Even Streak</div><div className="flex items-baseline justify-center gap-2"><span className="font-mono text-xl font-bold text-profit">{data.longestEvenStreak}</span><span className="text-xs text-muted-foreground">longest</span></div><div className="text-xs text-muted-foreground mt-1">current: <span className="font-mono text-foreground">{data.currentEvenStreak}</span></div></div>
-            <div className="flex-1 bg-secondary rounded-lg p-3 text-center"><div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Odd Streak</div><div className="flex items-baseline justify-center gap-2"><span className="font-mono text-xl font-bold text-loss">{data.longestOddStreak}</span><span className="text-xs text-muted-foreground">longest</span></div><div className="text-xs text-muted-foreground mt-1">current: <span className="font-mono text-foreground">{data.currentOddStreak}</span></div></div>
-          </div>
-          <div><div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Consecutive per Digit</div><div className="grid grid-cols-5 gap-2">{data.digitStreaks.map(s => (<div key={s.digit} className="bg-secondary rounded p-2 text-center"><div className="font-mono text-xs text-highlight font-bold mb-1">{s.digit}</div><div className="font-mono text-sm font-bold text-foreground">{s.longest}</div><div className="text-[10px] text-muted-foreground">now {s.current}</div></div>))}</div></div>
-        </div>
       );
     }
 
@@ -756,7 +730,6 @@
       const overUnder = useMemo(() => computeOverUnder(digits), [digits]);
       const matchDiffer = useMemo(() => computeMatchDiffer(digits), [digits]);
       const evenOdd = useMemo(() => computeEvenOdd(digits), [digits]);
-      const streaks = useMemo(() => computeStreaks(digits), [digits]);
       const riseFall = useMemo(() => computeRiseFall(prices), [prices]);
       const maxFreqPct = useMemo(() => {
         if (frequency1000.length === 0) return 15;
@@ -957,11 +930,7 @@
                   </div>
                 </AnalysisCard>
 
-                <AnalysisCard title="Streak Tracking" subtitle="Longest & current consecutive streaks">
-                  <StreakDisplay data={streaks} />
-                </AnalysisCard>
-
-                {/* Trade Predictions placed here, below Streak Tracking */}
+                {/* Trade Predictions placed here, directly after Recent Digits */}
                 <TradePredictions frequency={frequency1000} overUnder={overUnder} evenOdd={evenOdd} riseFall={riseFall} />
 
                 <AnalysisCard title="Frequency History (last 30 snapshots)" subtitle="Every 10 ticks — lines for most deviating digits">
