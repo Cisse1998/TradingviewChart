@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digits Analysis Terminal + Suggestion & History + Signal Scanner + Rise/Fall + Consecutive Colors + Even/Odd Scanner</title>
+  <title>Digits Analysis Terminal + Configurable Even/Odd Scanner</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -186,14 +186,13 @@
 
     // ---------- analysis functions (now using last 1000 ticks) ----------
     function computeDigitFrequency(digits) {
-      // This function is kept for other uses (like history snapshots)
       const total = digits.length;
       const counts = Array(10).fill(0);
       digits.forEach(d => counts[d]++);
       return counts.map((count, digit) => ({ digit, count, percentage: total > 0 ? (count / total) * 100 : 0 }));
     }
 
-    // New: compute frequency for last 1000 ticks
+    // compute frequency for last 1000 ticks
     function computeFrequency1000(digits) {
       const len = digits.length;
       if (len === 0) return [];
@@ -545,8 +544,8 @@
       );
     }
 
-    // ---------- Even/Odd Signal Scanner (last 1000 ticks) ----------
-    function EvenOddSignalScanner({ digits }) {
+    // ---------- Even/Odd Signal Scanner (last 1000 ticks) with configurable threshold and min count ----------
+    function EvenOddSignalScanner({ digits, threshold, minCount }) {
       const W = 1000;
       const len = digits.length;
       const recentDigits = len <= W ? digits : digits.slice(len - W);
@@ -557,24 +556,24 @@
       const evenDigits = [0,2,4,6,8];
       const oddDigits = [1,3,5,7,9];
 
-      const evenAboveThreshold = evenDigits.filter(d => percentages[d] >= 10.2).length;
-      const oddAboveThreshold = oddDigits.filter(d => percentages[d] >= 10.2).length;
+      const evenAboveThreshold = evenDigits.filter(d => percentages[d] >= threshold).length;
+      const oddAboveThreshold = oddDigits.filter(d => percentages[d] >= threshold).length;
 
       const signal = useMemo(() => {
-        if (evenAboveThreshold >= 3 && oddAboveThreshold >= 3) {
+        if (evenAboveThreshold >= minCount && oddAboveThreshold >= minCount) {
           return { type: 'BOTH', message: 'TRADE BOTH' };
-        } else if (evenAboveThreshold >= 3) {
-          return { type: 'ODD', message: 'TRADE ODD' };
-        } else if (oddAboveThreshold >= 3) {
+        } else if (evenAboveThreshold >= minCount) {
           return { type: 'EVEN', message: 'TRADE EVEN' };
+        } else if (oddAboveThreshold >= minCount) {
+          return { type: 'ODD', message: 'TRADE ODD' };
         }
         return null;
-      }, [evenAboveThreshold, oddAboveThreshold]);
+      }, [evenAboveThreshold, oddAboveThreshold, minCount]);
 
       const borderColor = signal?.type === 'EVEN' ? 'border-profit' : signal?.type === 'ODD' ? 'border-loss' : signal?.type === 'BOTH' ? 'border-accent' : 'border-border';
 
       return (
-        <AnalysisCard title="🎯 Even/Odd Signal Scanner" subtitle="Analyzing market....">
+        <AnalysisCard title="🎯 Even/Odd Signal Scanner" subtitle={`Threshold: ${threshold.toFixed(1)}%, Min digits: ${minCount}`}>
           <div className={`p-4 rounded-lg border-4 ${borderColor} transition-colors duration-300`}>
             {signal ? (
               <div className="text-center">
@@ -586,7 +585,7 @@
               </div>
             )}
             <div className="mt-2 text-xs text-muted-foreground text-center">
-              Even digits ≥10.2%: {evenAboveThreshold} | Odd digits ≥10.2%: {oddAboveThreshold}
+              Even digits ≥{threshold.toFixed(1)}%: {evenAboveThreshold} | Odd digits ≥{threshold.toFixed(1)}%: {oddAboveThreshold}
             </div>
           </div>
         </AnalysisCard>
@@ -605,6 +604,10 @@
       const [decimalPlaces, setDecimalPlaces] = useState(3);
       const connectionRef = useRef(null);
 
+      // Configurable parameters for Even/Odd scanner
+      const [threshold, setThreshold] = useState(10.2);
+      const [minCount, setMinCount] = useState(3);
+
       const [freqHistory, setFreqHistory] = useState([]);
       const lastSnapshotLength = useRef(0);
 
@@ -622,7 +625,6 @@
         if (digits.length === 0) return;
         if (digits.length % 10 === 0 && digits.length > lastSnapshotLength.current) {
           lastSnapshotLength.current = digits.length;
-          // For history we still use all digits (or you could use last 1000, but keep as is)
           const freqs = computeDigitFrequency(digits).map(f => f.percentage);
           setFreqHistory(prev => {
             const updated = [...prev, freqs];
@@ -636,7 +638,6 @@
         lastSnapshotLength.current = 0;
       }, []);
 
-      // Compute frequency based on last 1000 ticks
       const frequency1000 = useMemo(() => computeFrequency1000(digits), [digits]);
       const overUnder = useMemo(() => computeOverUnder(digits), [digits]);
       const matchDiffer = useMemo(() => computeMatchDiffer(digits), [digits]);
@@ -695,7 +696,6 @@
       const selectedLabel = VOLATILITY_SYMBOLS.find(s => s.value === symbol)?.label || symbol;
       const currentDigit = digits.length > 0 ? digits[digits.length - 1] : null;
 
-      // Compute current consecutive streak length
       const currentStreak = useMemo(() => {
         if (digits.length === 0) return 0;
         let streak = 1;
@@ -706,7 +706,6 @@
         return streak;
       }, [digits]);
 
-      // Function to determine text color based on streak length
       const getStreakColor = (streak) => {
         if (streak === 1) return 'text-profit';
         if (streak === 2) return 'text-white';
@@ -716,7 +715,6 @@
         return 'text-profit';
       };
 
-      // Prepare recent digits with consecutive detection
       const recentDigits = useMemo(() => digits.slice(-50).reverse(), [digits]);
       const consecutiveFlags = useMemo(() => {
         const flags = new Array(recentDigits.length).fill(false);
@@ -736,7 +734,7 @@
           <header className="border-b border-border px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Suggestion & History + Signal Scanner + Rise/Fall + Consecutive Colors + Even/Odd Scanner</h1>
+                <h1 className="text-xl font-bold text-foreground tracking-tight"><span className="text-primary">●</span> Digit Analysis Terminal + Configurable Even/Odd Scanner</h1>
                 <p className="text-xs text-muted-foreground mt-0.5">Deriv Synthetic Indices — Live Digit Analysis</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
@@ -759,6 +757,17 @@
                 <label className="text-sm text-muted-foreground">Max ticks:</label>
                 <input type="number" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => e.key === "Enter" && handleMaxTicksChange()} onBlur={handleMaxTicksChange} min={10} max={50000} className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground w-24 focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
+
+              {/* New controls for Even/Odd scanner */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">Threshold %:</label>
+                <input type="number" value={threshold} onChange={e => setThreshold(parseFloat(e.target.value))} step="0.1" min="0" max="100" className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground w-20 focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">Min digits:</label>
+                <input type="number" value={minCount} onChange={e => setMinCount(parseInt(e.target.value))} step="1" min="1" max="5" className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground w-16 focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
               <div className="flex gap-2 ml-auto">
                 {!isLive ? <button onClick={startStream} className="bg-primary text-primary-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">▶ Start Live</button> :
                 <button onClick={stopStream} className="bg-destructive text-destructive-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">■ Stop</button>}
@@ -819,7 +828,7 @@
                   </AnalysisCard>
                 </div>
 
-                <EvenOddSignalScanner digits={digits} />
+                <EvenOddSignalScanner digits={digits} threshold={threshold} minCount={minCount} />
 
                 <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first) — Yellow ring indicates consecutive same digit">
                   <div className="flex flex-wrap gap-1.5">
