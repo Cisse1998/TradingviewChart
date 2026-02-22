@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digits Analysis Terminal </title>
+  <title>Digits Analysis Terminal + Theme Modes</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -21,7 +21,29 @@
       --foreground: 255 255 255;
       --muted-foreground: 161 161 170;
     }
-    body { background-color: rgb(var(--background)); color: rgb(var(--foreground)); font-family: ui-monospace, monospace; }
+
+    /* Light theme overrides */
+    body.light-theme {
+      --background: 248 250 252;
+      --card: 255 255 255;
+      --secondary: 241 245 249;
+      --border: 226 232 240;
+      --primary: 37 99 235;
+      --destructive: 220 38 38;
+      --profit: 22 163 74;
+      --loss: 220 38 38;
+      --highlight: 245 158 11;
+      --accent: 139 92 246;
+      --foreground: 15 23 42;
+      --muted-foreground: 71 85 105;
+    }
+
+    body { 
+      background-color: rgb(var(--background)); 
+      color: rgb(var(--foreground)); 
+      font-family: ui-monospace, monospace; 
+      transition: background-color 0.2s, color 0.2s;
+    }
     .bg-background { background-color: rgb(var(--background)); }
     .bg-card { background-color: rgb(var(--card)); }
     .bg-secondary { background-color: rgb(var(--secondary)); }
@@ -271,7 +293,7 @@
             </div>
           </div>
           {isCurrent && (
-            <div className="text-white text-sm leading-3 mt-1">▲</div>
+            <div className="text-foreground text-sm leading-3 mt-1">▲</div>
           )}
           {!isCurrent && <div className="h-4" />}
         </div>
@@ -811,6 +833,49 @@
 
     // ---------- main App ----------
     function Index() {
+      // Theme state: 'dark', 'light', or 'system'
+      const [theme, setTheme] = useState(() => {
+        // Check localStorage or default to 'system'
+        const saved = localStorage.getItem('theme');
+        return saved ? saved : 'system';
+      });
+
+      // Apply theme to body class
+      useEffect(() => {
+        const applyTheme = (mode) => {
+          const body = document.body;
+          if (mode === 'dark') {
+            body.classList.remove('light-theme');
+          } else if (mode === 'light') {
+            body.classList.add('light-theme');
+          } else if (mode === 'system') {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) {
+              body.classList.remove('light-theme');
+            } else {
+              body.classList.add('light-theme');
+            }
+          }
+          localStorage.setItem('theme', mode);
+        };
+
+        applyTheme(theme);
+
+        // Listen for system theme changes if theme is 'system'
+        if (theme === 'system') {
+          const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+          const handler = (e) => {
+            if (e.matches) {
+              document.body.classList.remove('light-theme');
+            } else {
+              document.body.classList.add('light-theme');
+            }
+          };
+          mediaQuery.addEventListener('change', handler);
+          return () => mediaQuery.removeEventListener('change', handler);
+        }
+      }, [theme]);
+
       const [maxTicks, setMaxTicks] = useState(1000);
       const [inputValue, setInputValue] = useState("1000");
       const [digits, setDigits] = useState([]);
@@ -978,6 +1043,20 @@
               <div className="flex items-center gap-2">
                 <label className="text-sm text-muted-foreground">Max ticks:</label>
                 <input type="number" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => e.key === "Enter" && handleMaxTicksChange()} onBlur={handleMaxTicksChange} min={10} max={50000} className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground w-24 focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* Theme selector */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">Theme:</label>
+                <select
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value)}
+                  className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                  <option value="system">System</option>
+                </select>
               </div>
 
               {/* Controls for Even/Odd scanner */}
