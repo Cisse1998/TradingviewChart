@@ -1215,7 +1215,10 @@
                   </div>
                 </AnalysisCard>
 
-                {/* AI Prediction Card placed right after Digit Frequency */}
+                {/* Range Dominance Scanner placed right after Digit Frequency */}
+                <RangeDominanceScanner digits={digits} />
+
+                {/* AI Prediction Card */}
                 <AIPrediction digits={digits} />
 
                 <SuggestionCard frequency={frequency1000} />
@@ -1282,9 +1285,6 @@
                 </AnalysisCard>
 
                 <TradePredictions frequency={frequency1000} overUnder={overUnder} evenOdd={evenOdd} riseFall={riseFall} />
-
-                {/* Range Dominance Scanner */}
-                <RangeDominanceScanner digits={digits} />
               </>
             )}
           </main>
