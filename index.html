@@ -689,93 +689,7 @@
       );
     }
 
-    // ---------- Over/Under Signal Scanner (30s appearance probability) ----------
-    function OverUnderSignalScanner({ digits }) {
-      const W = 1000;
-      const N = 90; // expected ticks in 30s
-      const len = digits.length;
-      if (len === 0) return null;
-
-      const recentDigits = len <= W ? digits : digits.slice(len - W);
-      const counts = Array(10).fill(0);
-      recentDigits.forEach(d => counts[d]++);
-      const windowSize = recentDigits.length;
-
-      // Probabilities P_i = count_i / windowSize
-      const P = counts.map(c => c / windowSize);
-
-      // 30s appearance probability A_i = 1 - (1 - P_i)^N
-      const A = P.map(p => 1 - Math.pow(1 - p, N));
-
-      // Market bias Δ = max(P_i) - 0.10
-      const maxP = Math.max(...P);
-      const delta = maxP - 0.10;
-
-      // Thresholds
-      const strongThreshold = 0.95;
-      const weakThreshold = 0.85;
-
-      // Determine which digits qualify
-      const strongSignals = [];
-      const weakSignals = [];
-      for (let i = 0; i < 10; i++) {
-        if (A[i] >= strongThreshold) {
-          strongSignals.push(i);
-        } else if (A[i] >= weakThreshold) {
-          weakSignals.push(i);
-        }
-      }
-
-      // Check if market is too uniform
-      const uniformWarning = delta < 0.02;
-
-      return (
-        <AnalysisCard title="🔮 Over/Under Signal Scanner (30s)" subtitle="Probability digit appears at least once in next 30s (≈90 ticks)">
-          {uniformWarning && (
-            <div className="mb-3 p-2 bg-yellow-500/20 border border-yellow-500 rounded text-center text-sm">
-              {`⚠️ Market too uniform (Δ = ${(delta*100).toFixed(1)}% < 2%) - signals may be unreliable`}
-            </div>
-          )}
-          <div className="space-y-3">
-            {strongSignals.length === 0 && weakSignals.length === 0 ? (
-              <div className="text-center text-muted-foreground py-2">No significant signals (all Aᵢ &lt; 85%)</div>
-            ) : (
-              <>
-                {strongSignals.length > 0 && (
-                  <div>
-                    <h4 className="text-xs uppercase tracking-wider text-profit mb-2">🟢 STRONG (≥95%)</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {strongSignals.map(d => (
-                        <div key={d} className="bg-profit/20 border border-profit rounded px-3 py-1 text-sm font-mono">
-                          Digit {d} – {(A[d]*100).toFixed(1)}%
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {weakSignals.length > 0 && (
-                  <div>
-                    <h4 className="text-xs uppercase tracking-wider text-yellow-400 mb-2">🟡 WEAK (85–95%)</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {weakSignals.map(d => (
-                        <div key={d} className="bg-yellow-400/20 border border-yellow-400 rounded px-3 py-1 text-sm font-mono">
-                          Digit {d} – {(A[d]*100).toFixed(1)}%
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-            <div className="text-xs text-muted-foreground border-t border-border pt-2">
-              Based on last {windowSize} ticks | Pᵢ = countᵢ / {windowSize} | Aᵢ = 1-(1-Pᵢ)^{N} with N=90
-            </div>
-          </div>
-        </AnalysisCard>
-      );
-    }
-
-    // ---------- Range Dominance Scanner (0-4 vs 5-9) ----------
+    // ---------- NEW: Range Dominance Scanner (0-4 vs 5-9) ----------
     function RangeDominanceScanner({ digits }) {
       const W = 1000;
       const N = 90; // expected ticks in 30s
@@ -787,60 +701,70 @@
       recentDigits.forEach(d => counts[d]++);
       const windowSize = recentDigits.length;
 
-      const lowCount = counts[0] + counts[1] + counts[2] + counts[3] + counts[4];
-      const highCount = counts[5] + counts[6] + counts[7] + counts[8] + counts[9];
+      // Probabilities for each digit
+      const P = counts.map(c => c / windowSize);
 
-      const P_low = lowCount / windowSize;
-      const P_high = highCount / windowSize;
+      // Sum for ranges 0-4 and 5-9
+      const P04 = P.slice(0, 5).reduce((a, b) => a + b, 0);
+      const P59 = P.slice(5, 10).reduce((a, b) => a + b, 0);
 
-      const E_low = P_low * N;
-      const E_high = P_high * N;
+      // Expected counts in next 30s
+      const E04 = P04 * N;
+      const E59 = P59 * N;
 
-      const D = Math.abs(P_low - 0.5);
-      const hasSignal = D >= 0.05;
+      // Dominance D = |P04 - 0.5|
+      const D = Math.abs(P04 - 0.5);
+
+      // Determine signal
+      const threshold = 0.05;
+      const hasSignal = D >= threshold;
 
       let signalType = null;
+      let message = '';
       if (hasSignal) {
-        signalType = P_low > 0.5 ? 'UNDER_5' : 'OVER_4';
+        if (P04 > 0.5) {
+          signalType = 'UNDER_5';
+          message = `🟢 0–4 dominance expected (${E04.toFixed(1)} vs ${E59.toFixed(1)} appearances) – Trade: Digit Under 5`;
+        } else {
+          signalType = 'OVER_4';
+          message = `🟢 5–9 dominance expected (${E59.toFixed(1)} vs ${E04.toFixed(1)} appearances) – Trade: Digit Over 4`;
+        }
       }
 
-      const signalText = signalType === 'UNDER_5' ? 'Digit Under 5 (0-4)' : 'Digit Over 4 (5-9)';
-
       return (
-        <AnalysisCard title="📊 Range Dominance (0-4 vs 5-9)" subtitle="Probability of low vs high range in next 30s">
+        <AnalysisCard title="📊 Range Dominance Scanner (0-4 vs 5-9)" subtitle="Predicts which digit range will dominate in next 30s">
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">P(0-4):</span>
-              <span className="font-mono">{(P_low*100).toFixed(1)}%</span>
+              <span className="font-mono">{(P04*100).toFixed(1)}%</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">P(5-9):</span>
-              <span className="font-mono">{(P_high*100).toFixed(1)}%</span>
+              <span className="font-mono">{(P59*100).toFixed(1)}%</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Expected in 30s (0-4):</span>
-              <span className="font-mono">{E_low.toFixed(1)} ticks</span>
+              <span className="text-muted-foreground">Dominance D:</span>
+              <span className="font-mono">{(D*100).toFixed(1)}%</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Expected in 30s (5-9):</span>
-              <span className="font-mono">{E_high.toFixed(1)} ticks</span>
+              <span className="text-muted-foreground">Expected 0-4 in 30s:</span>
+              <span className="font-mono">{E04.toFixed(1)} ticks</span>
             </div>
-            <div className="border-t border-border pt-2">
-              {!hasSignal ? (
-                <div className="text-center text-yellow-400 font-semibold">🔴 NO SIGNAL (D = {(D*100).toFixed(1)}% < 5%)</div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Expected 5-9 in 30s:</span>
+              <span className="font-mono">{E59.toFixed(1)} ticks</span>
+            </div>
+
+            <div className={`mt-3 p-3 rounded-lg border-2 text-center ${hasSignal ? (P04 > 0.5 ? 'border-profit bg-profit/10' : 'border-accent bg-accent/10') : 'border-border bg-secondary/50'}`}>
+              {hasSignal ? (
+                <span className="font-bold">{message}</span>
               ) : (
-                <div className="text-center">
-                  <div className={`text-lg font-bold ${signalType === 'UNDER_5' ? 'text-profit' : 'text-loss'}`}>
-                    🟢 SIGNAL: {signalText}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Dominance D = {(D*100).toFixed(1)}% (≥5%)
-                  </div>
-                </div>
+                <span className="text-muted-foreground">🔴 NO SIGNAL – market too balanced (D &lt; 5%)</span>
               )}
             </div>
+
             <div className="text-xs text-muted-foreground border-t border-border pt-2">
-              Based on last {windowSize} ticks | N=90 ticks in 30s
+              Based on last {windowSize} ticks | N=90 ticks (≈30s)
             </div>
           </div>
         </AnalysisCard>
@@ -1359,10 +1283,7 @@
 
                 <TradePredictions frequency={frequency1000} overUnder={overUnder} evenOdd={evenOdd} riseFall={riseFall} />
 
-                {/* Over/Under Signal Scanner */}
-                <OverUnderSignalScanner digits={digits} />
-
-                {/* NEW: Range Dominance Scanner */}
+                {/* Range Dominance Scanner */}
                 <RangeDominanceScanner digits={digits} />
               </>
             )}
