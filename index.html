@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digits Analysis Terminal + Theme Modes</title>
+  <title>Digits Analyzer</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -525,7 +525,7 @@
 
       const signal = useMemo(() => {
         if (evenAboveThreshold >= minCount && oddAboveThreshold >= minCount) {
-          return { type: 'BOTH', message: 'TRADE BOTH' };
+          return { type: 'BOTH OR IGNORE', message: 'TRADE BOTH OR IGNORE' };
         } else if (evenAboveThreshold >= minCount) {
           return { type: 'ODD', message: 'TRADE ODD' };
         } else if (oddAboveThreshold >= minCount) {
