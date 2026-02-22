@@ -733,7 +733,7 @@
         <AnalysisCard title="🔮 Over/Under Signal Scanner (30s)" subtitle="Probability digit appears at least once in next 30s (≈90 ticks)">
           {uniformWarning && (
             <div className="mb-3 p-2 bg-yellow-500/20 border border-yellow-500 rounded text-center text-sm">
-              ⚠️ Market too uniform (Δ = {(delta*100).toFixed(1)}% < 2%) - signals may be unreliable
+              {`⚠️ Market too uniform (Δ = ${(delta*100).toFixed(1)}% < 2%) - signals may be unreliable`}
             </div>
           )}
           <div className="space-y-3">
