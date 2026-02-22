@@ -775,6 +775,78 @@
       );
     }
 
+    // ---------- Range Dominance Scanner (0-4 vs 5-9) ----------
+    function RangeDominanceScanner({ digits }) {
+      const W = 1000;
+      const N = 90; // expected ticks in 30s
+      const len = digits.length;
+      if (len === 0) return null;
+
+      const recentDigits = len <= W ? digits : digits.slice(len - W);
+      const counts = Array(10).fill(0);
+      recentDigits.forEach(d => counts[d]++);
+      const windowSize = recentDigits.length;
+
+      const lowCount = counts[0] + counts[1] + counts[2] + counts[3] + counts[4];
+      const highCount = counts[5] + counts[6] + counts[7] + counts[8] + counts[9];
+
+      const P_low = lowCount / windowSize;
+      const P_high = highCount / windowSize;
+
+      const E_low = P_low * N;
+      const E_high = P_high * N;
+
+      const D = Math.abs(P_low - 0.5);
+      const hasSignal = D >= 0.05;
+
+      let signalType = null;
+      if (hasSignal) {
+        signalType = P_low > 0.5 ? 'UNDER_5' : 'OVER_4';
+      }
+
+      const signalText = signalType === 'UNDER_5' ? 'Digit Under 5 (0-4)' : 'Digit Over 4 (5-9)';
+
+      return (
+        <AnalysisCard title="📊 Range Dominance (0-4 vs 5-9)" subtitle="Probability of low vs high range in next 30s">
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">P(0-4):</span>
+              <span className="font-mono">{(P_low*100).toFixed(1)}%</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">P(5-9):</span>
+              <span className="font-mono">{(P_high*100).toFixed(1)}%</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Expected in 30s (0-4):</span>
+              <span className="font-mono">{E_low.toFixed(1)} ticks</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Expected in 30s (5-9):</span>
+              <span className="font-mono">{E_high.toFixed(1)} ticks</span>
+            </div>
+            <div className="border-t border-border pt-2">
+              {!hasSignal ? (
+                <div className="text-center text-yellow-400 font-semibold">🔴 NO SIGNAL (D = {(D*100).toFixed(1)}% < 5%)</div>
+              ) : (
+                <div className="text-center">
+                  <div className={`text-lg font-bold ${signalType === 'UNDER_5' ? 'text-profit' : 'text-loss'}`}>
+                    🟢 SIGNAL: {signalText}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Dominance D = {(D*100).toFixed(1)}% (≥5%)
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground border-t border-border pt-2">
+              Based on last {windowSize} ticks | N=90 ticks in 30s
+            </div>
+          </div>
+        </AnalysisCard>
+      );
+    }
+
     // ---------- AI-Enhanced Digit Prediction Component ----------
     function AIPrediction({ digits }) {
       const [lastDigit, setLastDigit] = useState(null);
@@ -1289,6 +1361,9 @@
 
                 {/* Over/Under Signal Scanner */}
                 <OverUnderSignalScanner digits={digits} />
+
+                {/* NEW: Range Dominance Scanner */}
+                <RangeDominanceScanner digits={digits} />
               </>
             )}
           </main>
