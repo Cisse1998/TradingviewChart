@@ -527,9 +527,9 @@
         if (evenAboveThreshold >= minCount && oddAboveThreshold >= minCount) {
           return { type: 'BOTH OR IGNORE', message: 'TRADE BOTH OR IGNORE' };
         } else if (evenAboveThreshold >= minCount) {
-          return { type: 'EVEN', message: 'TRADE EVEN' };
-        } else if (oddAboveThreshold >= minCount) {
           return { type: 'ODD', message: 'TRADE ODD' };
+        } else if (oddAboveThreshold >= minCount) {
+          return { type: 'EVEN', message: 'TRADE EVEN' };
         }
         return null;
       }, [evenAboveThreshold, oddAboveThreshold, minCount]);
