@@ -6,7 +6,7 @@
   <title>Digits Analyzer + TradingView Chart</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Recharts UMD -->
+  <!-- Recharts UMD (loaded before React) -->
   <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
   <style>
     :root {
@@ -402,9 +402,8 @@
       }));
     }
 
-    // ---------- TradingView Chart Component (with fixed Recharts loading) ----------
+    // ---------- TradingView Chart Component (with immediate loading) ----------
     function TradingViewChart({ ticks }) {
-      const [rechartsReady, setRechartsReady] = useState(false);
       const [visible, setVisible] = useState({
         alma: true,
         donchian: true,
@@ -423,21 +422,6 @@
         { label: "12H", seconds: 43200 },
         { label: "24H", seconds: 86400 },
       ];
-
-      // Wait for Recharts to be available
-      useEffect(() => {
-        if (window.Recharts) {
-          setRechartsReady(true);
-          return;
-        }
-        const interval = setInterval(() => {
-          if (window.Recharts) {
-            setRechartsReady(true);
-            clearInterval(interval);
-          }
-        }, 100);
-        return () => clearInterval(interval);
-      }, []);
 
       // Helper to format time label
       const formatTime = (ts, intervalSec) => {
@@ -507,8 +491,9 @@
 
       const toggle = (key) => setVisible(prev => ({ ...prev, [key]: !prev[key] }));
 
-      if (!rechartsReady) {
-        return <p className="text-muted-foreground text-sm text-center py-8">Loading chart library...</p>;
+      // Recharts is guaranteed to be available because script loaded before React
+      if (!window.Recharts) {
+        return <p className="text-muted-foreground text-sm text-center py-8">Loading chart library... (if this persists, check your internet)</p>;
       }
 
       if (ticks.length < 10) {
@@ -1484,7 +1469,7 @@
       const [symbol, setSymbol] = useState("R_100");
       const [isLive, setIsLive] = useState(false);
       const [lastPrice, setLastPrice] = useState(null);
-      const [decimalPlaces, setDecimalPlaces] = useState(DECIMAL_PLACES['R_100']); // use hardcoded map
+      const [decimalPlaces, setDecimalPlaces] = useState(DECIMAL_PLACES['R_100']);
       const connectionRef = useRef(null);
       const [threshold, setThreshold] = useState(10.2);
       const [minCount, setMinCount] = useState(3);
@@ -1523,7 +1508,6 @@
         }
       }, [theme]);
 
-      // Update decimal places when symbol changes
       useEffect(() => {
         setDecimalPlaces(DECIMAL_PLACES[symbol] || 3);
       }, [symbol]);
@@ -1639,11 +1623,10 @@
       const upperDigits = frequency1000.filter(f => f.digit <= 4);
       const lowerDigits = frequency1000.filter(f => f.digit >= 5);
 
-      // Build tick objects for chart
       const ticksForChart = useMemo(() => {
         return prices.map((price, idx) => ({
           price,
-          timestamp: Date.now() - (prices.length - idx) * 300 // approximate timestamps
+          timestamp: Date.now() - (prices.length - idx) * 300
         }));
       }, [prices]);
 
@@ -1729,7 +1712,7 @@
 
                 <RiseFallCard data={riseFall} />
 
-                {/* TradingView Chart placed below Rise/Fall card */}
+                {/* TradingView Chart – now loads as soon as 10 ticks are collected */}
                 <TradingViewChart ticks={ticksForChart} />
 
                 <RecentMovements prices={prices} />
