@@ -402,7 +402,7 @@
       }));
     }
 
-    // ---------- TradingView Chart Component (with Recharts loading check) ----------
+    // ---------- TradingView Chart Component (with fixed Recharts loading) ----------
     function TradingViewChart({ ticks }) {
       const [rechartsReady, setRechartsReady] = useState(false);
       const [visible, setVisible] = useState({
@@ -426,14 +426,17 @@
 
       // Wait for Recharts to be available
       useEffect(() => {
-        const check = () => {
+        if (window.Recharts) {
+          setRechartsReady(true);
+          return;
+        }
+        const interval = setInterval(() => {
           if (window.Recharts) {
             setRechartsReady(true);
-          } else {
-            setTimeout(check, 100);
+            clearInterval(interval);
           }
-        };
-        check();
+        }, 100);
+        return () => clearInterval(interval);
       }, []);
 
       // Helper to format time label
