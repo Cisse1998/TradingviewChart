@@ -403,8 +403,6 @@
     }
 
     // ---------- TradingView Chart Component (exact copy from file) ----------
-    // --- Types (converted to plain JS) ---
-
     // --- Timeframes ---
     const TIMEFRAMES = [
       { label: "1m", seconds: 60 },
@@ -524,8 +522,13 @@
       const [timeframe, setTimeframe] = useState(60); // seconds
 
       const candles = useMemo(() => {
-        const all = aggregateOHLC(ticks, timeframe);
-        return all.slice(-100); // last 100 candles
+        try {
+          const all = aggregateOHLC(ticks, timeframe);
+          return all.slice(-100); // last 100 candles
+        } catch (e) {
+          console.error("Error aggregating candles:", e);
+          return [];
+        }
       }, [ticks, timeframe]);
 
       // Indicators computed on candle close prices
@@ -538,7 +541,6 @@
           candles.map((c, i) => ({
             ...c,
             ...indicators[i],
-            // For candlestick bar rendering
             candleRange: [Math.min(c.open, c.close), Math.max(c.open, c.close)],
             bullish: c.close >= c.open,
           })),
@@ -567,7 +569,7 @@
       if (ticks.length < 10) {
         return (
           <p className="text-muted-foreground text-sm text-center py-8">
-            Collecting ticks for candlestick chart…
+            Collecting ticks for candlestick chart… (got {ticks.length})
           </p>
         );
       }
@@ -1690,6 +1692,7 @@
       const upperDigits = frequency1000.filter(f => f.digit <= 4);
       const lowerDigits = frequency1000.filter(f => f.digit >= 5);
 
+      // Build tick objects for chart
       const ticksForChart = useMemo(() => {
         return prices.map((price, idx) => ({
           price,
@@ -1779,8 +1782,8 @@
 
                 <RiseFallCard data={riseFall} />
 
-                {/* TradingView Chart – exact copy from file */}
-                <TradingViewChart ticks={ticksForChart} />
+                {/* TradingView Chart – now with robust error handling and force-update key */}
+                <TradingViewChart key={prices.length >= 10 ? 'ready' : 'waiting'} ticks={ticksForChart} />
 
                 <RecentMovements prices={prices} />
 
