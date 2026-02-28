@@ -81,20 +81,6 @@
 
   <script type="text/babel">
     const { useState, useMemo, useCallback, useEffect, useRef } = React;
-    // Destructure recharts components from the global Recharts object
-    const { 
-      ResponsiveContainer, 
-      ComposedChart, 
-      Line, 
-      Area, 
-      Bar, 
-      XAxis, 
-      YAxis, 
-      CartesianGrid, 
-      Tooltip, 
-      ReferenceLine,
-      Cell 
-    } = Recharts;
 
     // ---------- constants ----------
     const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
@@ -435,8 +421,9 @@
       }));
     }
 
-    // ---------- TradingView Chart Component ----------
+    // ---------- TradingView Chart Component (with Recharts loading check) ----------
     function TradingViewChart({ ticks }) {
+      const [rechartsReady, setRechartsReady] = useState(false);
       const [visible, setVisible] = useState({
         alma: true,
         donchian: true,
@@ -455,6 +442,18 @@
         { label: "12H", seconds: 43200 },
         { label: "24H", seconds: 86400 },
       ];
+
+      // Wait for Recharts to be available
+      useEffect(() => {
+        const check = () => {
+          if (window.Recharts) {
+            setRechartsReady(true);
+          } else {
+            setTimeout(check, 100);
+          }
+        };
+        check();
+      }, []);
 
       // Aggregate ticks into OHLC candles
       const candles = useMemo(() => {
@@ -523,9 +522,15 @@
 
       const toggle = (key) => setVisible(prev => ({ ...prev, [key]: !prev[key] }));
 
+      if (!rechartsReady) {
+        return <p className="text-muted-foreground text-sm text-center py-8">Loading chart library...</p>;
+      }
+
       if (ticks.length < 10) {
         return <p className="text-muted-foreground text-sm text-center py-8">Collecting ticks for candlestick chart…</p>;
       }
+
+      const { ResponsiveContainer, ComposedChart, Line, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } = window.Recharts;
 
       const tooltipStyle = {
         backgroundColor: "hsl(var(--card))",
@@ -664,7 +669,6 @@
                   const color = isBull ? "hsl(var(--profit))" : "hsl(var(--loss))";
                   const { x, width } = props;
                   const [domMin, domMax] = priceExtent;
-                  const chartHeight = 300; // fixed? we need to compute from props? easier: use y from background
                   const bg = props.background;
                   if (!bg) return null;
                   const bgY = bg.y, bgH = bg.height;
