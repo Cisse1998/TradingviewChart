@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digits Analyzer</title>
+  <title>Digits Analyzer + TradingView Chart</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Recharts UMD -->
+  <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
   <style>
     :root {
       --background: 15 15 15;
@@ -79,6 +81,20 @@
 
   <script type="text/babel">
     const { useState, useMemo, useCallback, useEffect, useRef } = React;
+    // Destructure recharts components from the global Recharts object
+    const { 
+      ResponsiveContainer, 
+      ComposedChart, 
+      Line, 
+      Area, 
+      Bar, 
+      XAxis, 
+      YAxis, 
+      CartesianGrid, 
+      Tooltip, 
+      ReferenceLine,
+      Cell 
+    } = Recharts;
 
     // ---------- constants ----------
     const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
@@ -269,7 +285,485 @@
       };
     }
 
-    // ---------- components ----------
+    // ---------- Technical Indicators ----------
+    function sma(data, period) {
+      const result = [];
+      for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+          result.push(null);
+          continue;
+        }
+        let sum = 0;
+        for (let j = 0; j < period; j++) sum += data[i - j];
+        result.push(sum / period);
+      }
+      return result;
+    }
+
+    function alma(values, window = 9, sigma = 6, offset = 0.85) {
+      const m = offset * (window - 1);
+      const s = window / sigma;
+      const weights = [];
+      for (let i = 0; i < window; i++) {
+        const exp = -0.5 * Math.pow((i - m) / s, 2);
+        weights.push(Math.exp(exp));
+      }
+      const sumW = weights.reduce((a, b) => a + b, 0);
+      const normalized = weights.map(w => w / sumW);
+      const result = [];
+      for (let i = 0; i < values.length; i++) {
+        if (i < window - 1) {
+          result.push(null);
+          continue;
+        }
+        let sum = 0;
+        for (let j = 0; j < window; j++) {
+          sum += values[i - j] * normalized[window - 1 - j];
+        }
+        result.push(sum);
+      }
+      return result;
+    }
+
+    function donchian(data, period = 20) {
+      const upper = [];
+      const lower = [];
+      const middle = [];
+      for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+          upper.push(null);
+          lower.push(null);
+          middle.push(null);
+          continue;
+        }
+        let high = -Infinity, low = Infinity;
+        for (let j = 0; j < period; j++) {
+          const val = data[i - j];
+          if (val > high) high = val;
+          if (val < low) low = val;
+        }
+        upper.push(high);
+        lower.push(low);
+        middle.push((high + low) / 2);
+      }
+      return { donchianUpper: upper, donchianLower: lower, donchianMiddle: middle };
+    }
+
+    function cci(data, period = 20) {
+      const tp = data.map(v => v); // typical price, but here data is close
+      const smaTp = sma(tp, period);
+      const result = [];
+      for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+          result.push(null);
+          continue;
+        }
+        const mean = smaTp[i];
+        let mad = 0;
+        for (let j = 0; j < period; j++) {
+          mad += Math.abs(data[i - j] - mean);
+        }
+        mad /= period;
+        const cciVal = (data[i] - mean) / (0.015 * mad);
+        result.push(cciVal);
+      }
+      return result;
+    }
+
+    function macd(data, fast = 12, slow = 26, signal = 9) {
+      const emaFast = ema(data, fast);
+      const emaSlow = ema(data, slow);
+      const macdLine = [];
+      for (let i = 0; i < data.length; i++) {
+        if (emaFast[i] === null || emaSlow[i] === null) {
+          macdLine.push(null);
+        } else {
+          macdLine.push(emaFast[i] - emaSlow[i]);
+        }
+      }
+      const signalLine = ema(macdLine, signal);
+      const histogram = [];
+      for (let i = 0; i < data.length; i++) {
+        if (macdLine[i] === null || signalLine[i] === null) {
+          histogram.push(null);
+        } else {
+          histogram.push(macdLine[i] - signalLine[i]);
+        }
+      }
+      return { macdLine, macdSignal: signalLine, macdHist: histogram };
+    }
+
+    function ema(data, period) {
+      const k = 2 / (period + 1);
+      const result = [];
+      let emaPrev = null;
+      for (let i = 0; i < data.length; i++) {
+        if (data[i] === null) {
+          result.push(null);
+          continue;
+        }
+        if (i < period - 1) {
+          result.push(null);
+          continue;
+        }
+        if (emaPrev === null) {
+          let sum = 0;
+          for (let j = 0; j < period; j++) sum += data[i - j];
+          emaPrev = sum / period;
+        } else {
+          emaPrev = data[i] * k + emaPrev * (1 - k);
+        }
+        result.push(emaPrev);
+      }
+      return result;
+    }
+
+    function computeAllIndicators(closes) {
+      const almaVals = alma(closes, 9, 6, 0.85);
+      const don = donchian(closes, 20);
+      const cciVals = cci(closes, 20);
+      const macdVals = macd(closes, 12, 26, 9);
+      return closes.map((_, i) => ({
+        alma: almaVals[i],
+        donchianUpper: don.donchianUpper[i],
+        donchianLower: don.donchianLower[i],
+        donchianMiddle: don.donchianMiddle[i],
+        cci: cciVals[i],
+        macdLine: macdVals.macdLine[i],
+        macdSignal: macdVals.macdSignal[i],
+        macdHist: macdVals.macdHist[i],
+      }));
+    }
+
+    // ---------- TradingView Chart Component ----------
+    function TradingViewChart({ ticks }) {
+      const [visible, setVisible] = useState({
+        alma: true,
+        donchian: true,
+        cci: true,
+        macd: true,
+      });
+      const [timeframe, setTimeframe] = useState(60); // seconds
+
+      const TIMEFRAMES = [
+        { label: "1m", seconds: 60 },
+        { label: "5m", seconds: 300 },
+        { label: "15m", seconds: 900 },
+        { label: "30m", seconds: 1800 },
+        { label: "1H", seconds: 3600 },
+        { label: "4H", seconds: 14400 },
+        { label: "12H", seconds: 43200 },
+        { label: "24H", seconds: 86400 },
+      ];
+
+      // Aggregate ticks into OHLC candles
+      const candles = useMemo(() => {
+        if (ticks.length === 0) return [];
+        const intervalMs = timeframe * 1000;
+        const result = [];
+        let bucketStart = Math.floor(ticks[0].timestamp / intervalMs) * intervalMs;
+        let open = ticks[0].price;
+        let high = ticks[0].price;
+        let low = ticks[0].price;
+        let close = ticks[0].price;
+
+        for (let i = 0; i < ticks.length; i++) {
+          const t = ticks[i];
+          const thisBucket = Math.floor(t.timestamp / intervalMs) * intervalMs;
+          if (thisBucket !== bucketStart) {
+            result.push({
+              time: bucketStart,
+              open, high, low, close,
+              label: formatTime(bucketStart, timeframe)
+            });
+            bucketStart = thisBucket;
+            open = t.price;
+            high = t.price;
+            low = t.price;
+            close = t.price;
+          } else {
+            if (t.price > high) high = t.price;
+            if (t.price < low) low = t.price;
+            close = t.price;
+          }
+        }
+        // push last candle
+        result.push({
+          time: bucketStart,
+          open, high, low, close,
+          label: formatTime(bucketStart, timeframe)
+        });
+        return result.slice(-100); // keep last 100
+      }, [ticks, timeframe]);
+
+      const formatTime = (ts, intervalSec) => {
+        const d = new Date(ts);
+        if (intervalSec >= 86400) return d.toLocaleDateString([], { month: "short", day: "numeric" });
+        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      };
+
+      const candleCloses = useMemo(() => candles.map(c => c.close), [candles]);
+      const indicators = useMemo(() => computeAllIndicators(candleCloses), [candleCloses]);
+
+      const chartData = useMemo(() =>
+        candles.map((c, i) => ({ ...c, ...indicators[i] })),
+        [candles, indicators]
+      );
+
+      const priceExtent = useMemo(() => {
+        if (candles.length === 0) return [0, 1];
+        let min = Infinity, max = -Infinity;
+        candles.forEach(c => {
+          if (c.low < min) min = c.low;
+          if (c.high > max) max = c.high;
+        });
+        const pad = (max - min) * 0.05 || 0.001;
+        return [min - pad, max + pad];
+      }, [candles]);
+
+      const toggle = (key) => setVisible(prev => ({ ...prev, [key]: !prev[key] }));
+
+      if (ticks.length < 10) {
+        return <p className="text-muted-foreground text-sm text-center py-8">Collecting ticks for candlestick chart…</p>;
+      }
+
+      const tooltipStyle = {
+        backgroundColor: "hsl(var(--card))",
+        border: "1px solid hsl(var(--border))",
+        borderRadius: 8,
+        fontSize: 11,
+      };
+
+      return (
+        <div className="space-y-3">
+          {/* Timeframe selector + indicator toggles */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1 border border-border">
+              {TIMEFRAMES.map(tf => (
+                <button
+                  key={tf.seconds}
+                  onClick={() => setTimeframe(tf.seconds)}
+                  className={`px-2.5 py-1 rounded text-xs font-mono font-semibold transition-colors ${
+                    timeframe === tf.seconds
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tf.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="h-4 w-px bg-border" />
+
+            {[
+              ["alma", "ALMA", "hsl(var(--accent))"],
+              ["donchian", "Donchian", "hsl(var(--highlight))"],
+              ["cci", "CCI", "hsl(280, 70%, 60%)"],
+              ["macd", "MACD", "hsl(330, 70%, 55%)"],
+            ].map(([key, label, color]) => (
+              <button
+                key={key}
+                onClick={() => toggle(key)}
+                className={`px-3 py-1 rounded text-xs font-semibold border transition-colors ${
+                  visible[key]
+                    ? "border-primary/50 bg-primary/10 text-foreground"
+                    : "border-border bg-secondary/50 text-muted-foreground"
+                }`}
+              >
+                <span
+                  className="inline-block w-2 h-2 rounded-full mr-1.5"
+                  style={{ backgroundColor: visible[key] ? color : "hsl(var(--muted-foreground))" }}
+                />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Candlestick price chart */}
+          <div className="bg-secondary/30 rounded-lg p-3 border border-border">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+                Candlestick · ALMA · Donchian Channel
+              </p>
+              <span className="text-xs text-muted-foreground font-mono">
+                {candles.length} candles
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }}
+                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  domain={priceExtent}
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  width={65}
+                  tickFormatter={v => v.toFixed(2)}
+                />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0]?.payload;
+                    if (!d) return null;
+                    const bull = d.close >= d.open;
+                    return (
+                      <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs space-y-1">
+                        <p className="font-semibold text-foreground">{label}</p>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono">
+                          <span className="text-muted-foreground">O</span>
+                          <span className="text-foreground">{d.open?.toFixed(4)}</span>
+                          <span className="text-muted-foreground">H</span>
+                          <span className="text-foreground">{d.high?.toFixed(4)}</span>
+                          <span className="text-muted-foreground">L</span>
+                          <span className="text-foreground">{d.low?.toFixed(4)}</span>
+                          <span className="text-muted-foreground">C</span>
+                          <span className={bull ? "text-profit" : "text-loss"}>
+                            {d.close?.toFixed(4)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+
+                {/* Donchian channel */}
+                {visible.donchian && (
+                  <>
+                    <Area
+                      type="monotone" dataKey="donchianUpper"
+                      stroke="hsl(var(--highlight))" strokeWidth={1}
+                      fill="hsl(var(--highlight))" fillOpacity={0.06}
+                      dot={false} name="Donchian Upper" connectNulls
+                    />
+                    <Area
+                      type="monotone" dataKey="donchianLower"
+                      stroke="hsl(var(--highlight))" strokeWidth={1}
+                      fill="hsl(var(--background))" fillOpacity={1}
+                      dot={false} name="Donchian Lower" connectNulls
+                    />
+                    <Line
+                      type="monotone" dataKey="donchianMiddle"
+                      stroke="hsl(var(--highlight))" strokeWidth={1}
+                      strokeDasharray="4 4" dot={false} name="Donchian Mid" connectNulls
+                    />
+                  </>
+                )}
+
+                {/* Candlestick bodies */}
+                <Bar dataKey="close" barSize={8} isAnimationActive={false} shape={(props) => {
+                  const d = props.payload;
+                  if (!d) return null;
+                  const isBull = d.close >= d.open;
+                  const color = isBull ? "hsl(var(--profit))" : "hsl(var(--loss))";
+                  const { x, width } = props;
+                  const [domMin, domMax] = priceExtent;
+                  const chartHeight = 300; // fixed? we need to compute from props? easier: use y from background
+                  const bg = props.background;
+                  if (!bg) return null;
+                  const bgY = bg.y, bgH = bg.height;
+                  const pToY = (p) => bgY + bgH - ((p - domMin) / (domMax - domMin)) * bgH;
+
+                  const wickX = x + width / 2;
+                  const bodyTop = pToY(Math.max(d.open, d.close));
+                  const bodyBot = pToY(Math.min(d.open, d.close));
+                  const bodyH = Math.max(bodyBot - bodyTop, 1);
+                  const barW = Math.max(width * 0.7, 2);
+                  const barX = x + (width - barW) / 2;
+
+                  return (
+                    <g>
+                      <line x1={wickX} y1={pToY(d.high)} x2={wickX} y2={pToY(d.low)} stroke={color} strokeWidth={1} />
+                      <rect x={barX} y={bodyTop} width={barW} height={bodyH} fill={color} stroke={color} strokeWidth={0.5} />
+                    </g>
+                  );
+                }} />
+
+                {/* ALMA overlay */}
+                {visible.alma && (
+                  <Line
+                    type="monotone" dataKey="alma"
+                    stroke="hsl(var(--accent))" strokeWidth={2}
+                    dot={false} name="ALMA" connectNulls
+                  />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* CCI */}
+          {visible.cci && (
+            <div className="bg-secondary/30 rounded-lg p-3 border border-border">
+              <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wider">
+                CCI (20)
+              </p>
+              <ResponsiveContainer width="100%" height={140}>
+                <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" tick={false} axisLine={{ stroke: "hsl(var(--border))" }} />
+                  <YAxis
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    width={45}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} labelFormatter={v => `${v}`} formatter={value => value?.toFixed(2)} />
+                  <ReferenceLine y={100} stroke="hsl(var(--profit))" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={-100} stroke="hsl(var(--loss))" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.3} />
+                  <Line type="monotone" dataKey="cci" stroke="hsl(280, 70%, 60%)" strokeWidth={1.5} dot={false} name="CCI" connectNulls />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* MACD */}
+          {visible.macd && (
+            <div className="bg-secondary/30 rounded-lg p-3 border border-border">
+              <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wider">
+                MACD (12, 26, 9)
+              </p>
+              <ResponsiveContainer width="100%" height={140}>
+                <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" tick={false} axisLine={{ stroke: "hsl(var(--border))" }} />
+                  <YAxis
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    width={55}
+                    tickFormatter={v => v.toFixed(3)}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} labelFormatter={v => `${v}`} formatter={value => value?.toFixed(5)} />
+                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.3} />
+                  <Bar dataKey="macdHist" name="Histogram" isAnimationActive={false}>
+                    {chartData.map((entry, i) => (
+                      <Cell
+                        key={i}
+                        fill={
+                          (entry.macdHist ?? 0) >= 0
+                            ? "hsl(var(--profit))"
+                            : "hsl(var(--loss))"
+                        }
+                        opacity={0.5}
+                      />
+                    ))}
+                  </Bar>
+                  <Line type="monotone" dataKey="macdLine" stroke="hsl(330, 70%, 55%)" strokeWidth={1.5} dot={false} name="MACD" connectNulls />
+                  <Line type="monotone" dataKey="macdSignal" stroke="hsl(var(--profit))" strokeWidth={1.5} dot={false} name="Signal" connectNulls />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ---------- components from before (unchanged) ----------
     function AnalysisCard({ title, subtitle, children }) {
       return (
         <div className="bg-card border border-border rounded-lg p-5">
@@ -279,7 +773,6 @@
       );
     }
 
-    // DigitCircle with arc inside
     function DigitCircle({ digit, percentage, isHighest, isLowest, isCurrent }) {
       return (
         <div className="flex flex-col items-center mx-1">
@@ -321,7 +814,6 @@
       );
     }
 
-    // Rise/Fall Card
     function RiseFallCard({ data }) {
       return (
         <AnalysisCard title="📊 Rise / Fall Analysis" subtitle="Tick-to-tick price movement">
@@ -348,7 +840,6 @@
       );
     }
 
-    // ---------- trading suggestions card (uses last 1000 ticks) ----------
     function SuggestionCard({ frequency }) {
       if (!frequency || frequency.length === 0) return null;
       const deviations = frequency.map(f => ({ digit: f.digit, dev: f.percentage - 10 }));
@@ -374,11 +865,10 @@
       );
     }
 
-    // ---------- Signal Scanner Component (uses last 1000 ticks internally) ----------
     function SignalScanner({ digits, lastDigit }) {
       const [scannerActive, setScannerActive] = useState(false);
       const [lastSignal, setLastSignal] = useState(null);
-      const W = 1000; // window size
+      const W = 1000;
 
       const prediction = useMemo(() => {
         const len = digits.length;
@@ -473,7 +963,6 @@
       );
     }
 
-    // Recent Movements Card (displays R/F/= for last 50 ticks)
     function RecentMovements({ prices }) {
       const getMovement = (index) => {
         if (index === 0 || prices.length < 2) return '—';
@@ -508,7 +997,6 @@
       );
     }
 
-    // ---------- Even/Odd Signal Scanner (last 1000 ticks) with configurable threshold and min count ----------
     function EvenOddSignalScanner({ digits, threshold, setThreshold, minCount, setMinCount }) {
       const W = 1000;
       const len = digits.length;
@@ -527,9 +1015,9 @@
         if (evenAboveThreshold >= minCount && oddAboveThreshold >= minCount) {
           return { type: 'BOTH OR IGNORE', message: 'TRADE BOTH OR IGNORE' };
         } else if (evenAboveThreshold >= minCount) {
-          return { type: 'ODD', message: 'TRADE ODD' };
-        } else if (oddAboveThreshold >= minCount) {
           return { type: 'EVEN', message: 'TRADE EVEN' };
+        } else if (oddAboveThreshold >= minCount) {
+          return { type: 'ODD', message: 'TRADE ODD' };
         }
         return null;
       }, [evenAboveThreshold, oddAboveThreshold, minCount]);
@@ -538,7 +1026,6 @@
 
       return (
         <AnalysisCard title="🎯 Even/Odd Signal Scanner" subtitle="Controls just below Even/Odd card">
-          {/* Controls moved here */}
           <div className="flex flex-wrap items-center gap-4 mb-4 pb-2 border-b border-border">
             <div className="flex items-center gap-2">
               <label className="text-xs text-muted-foreground">Threshold %:</label>
@@ -584,7 +1071,6 @@
       );
     }
 
-    // ---------- Trade Predictions Panel ----------
     function TradePredictions({ frequency, overUnder, evenOdd, riseFall }) {
       if (!frequency || frequency.length === 0) return null;
 
@@ -689,7 +1175,6 @@
       );
     }
 
-    // ---------- Range Dominance Scanner (0-4 vs 5-9) with 1.2% threshold ----------
     function RangeDominanceScanner({ digits }) {
       const W = 1000;
       const N = 90; // expected ticks in 30s
@@ -701,21 +1186,12 @@
       recentDigits.forEach(d => counts[d]++);
       const windowSize = recentDigits.length;
 
-      // Probabilities for each digit
       const P = counts.map(c => c / windowSize);
-
-      // Sum for ranges 0-4 and 5-9
       const P04 = P.slice(0, 5).reduce((a, b) => a + b, 0);
       const P59 = P.slice(5, 10).reduce((a, b) => a + b, 0);
-
-      // Expected counts in next 30s
       const E04 = P04 * N;
       const E59 = P59 * N;
-
-      // Dominance D = |P04 - 0.5|
       const D = Math.abs(P04 - 0.5);
-
-      // Determine signal with 1.2% threshold
       const threshold = 0.012;
       const hasSignal = D >= threshold;
 
@@ -771,7 +1247,6 @@
       );
     }
 
-    // ---------- AI-Enhanced Digit Prediction Component ----------
     function AIPrediction({ digits }) {
       const [lastDigit, setLastDigit] = useState(null);
       useEffect(() => {
@@ -941,13 +1416,11 @@
       );
     }
 
-    // ---------- Even/Odd Momentum Scanner ----------
     function EvenOddMomentum({ frequency1000 }) {
       const [history, setHistory] = useState([]);
-      const THRESHOLD = 3.0; // percentage points
-      const WINDOW_SIZE = 10; // number of ticks to compare
+      const THRESHOLD = 3.0;
+      const WINDOW_SIZE = 10;
 
-      // Compute current even percentage from frequency1000
       const evenPercentage = useMemo(() => {
         if (!frequency1000 || frequency1000.length === 0) return 0;
         const evenDigits = [0,2,4,6,8];
@@ -959,18 +1432,14 @@
         return sum;
       }, [frequency1000]);
 
-      // Update history when evenPercentage changes
       useEffect(() => {
         setHistory(prev => {
           const newHistory = [...prev, evenPercentage];
-          if (newHistory.length > WINDOW_SIZE) {
-            newHistory.shift();
-          }
+          if (newHistory.length > WINDOW_SIZE) newHistory.shift();
           return newHistory;
         });
       }, [evenPercentage]);
 
-      // Calculate change from oldest to newest
       const delta = useMemo(() => {
         if (history.length < WINDOW_SIZE) return null;
         const oldest = history[0];
@@ -1018,14 +1487,21 @@
 
     // ---------- main App ----------
     function Index() {
-      // Theme state: 'dark', 'light', or 'system'
-      const [theme, setTheme] = useState(() => {
-        // Check localStorage or default to 'system'
-        const saved = localStorage.getItem('theme');
-        return saved ? saved : 'system';
-      });
+      const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'system');
+      const [maxTicks, setMaxTicks] = useState(1000);
+      const [inputValue, setInputValue] = useState("1000");
+      const [digits, setDigits] = useState([]);
+      const [prices, setPrices] = useState([]);
+      const [symbol, setSymbol] = useState("R_100");
+      const [isLive, setIsLive] = useState(false);
+      const [lastPrice, setLastPrice] = useState(null);
+      const [decimalPlaces, setDecimalPlaces] = useState(3);
+      const connectionRef = useRef(null);
+      const [threshold, setThreshold] = useState(10.2);
+      const [minCount, setMinCount] = useState(3);
+      const [freqHistory, setFreqHistory] = useState([]);
+      const lastSnapshotLength = useRef(0);
 
-      // Apply theme to body class
       useEffect(() => {
         const applyTheme = (mode) => {
           const body = document.body;
@@ -1043,10 +1519,7 @@
           }
           localStorage.setItem('theme', mode);
         };
-
         applyTheme(theme);
-
-        // Listen for system theme changes if theme is 'system'
         if (theme === 'system') {
           const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
           const handler = (e) => {
@@ -1060,23 +1533,6 @@
           return () => mediaQuery.removeEventListener('change', handler);
         }
       }, [theme]);
-
-      const [maxTicks, setMaxTicks] = useState(1000);
-      const [inputValue, setInputValue] = useState("1000");
-      const [digits, setDigits] = useState([]);
-      const [prices, setPrices] = useState([]);
-      const [symbol, setSymbol] = useState("R_100");
-      const [isLive, setIsLive] = useState(false);
-      const [lastPrice, setLastPrice] = useState(null);
-      const [decimalPlaces, setDecimalPlaces] = useState(3);
-      const connectionRef = useRef(null);
-
-      // Configurable parameters for Even/Odd scanner
-      const [threshold, setThreshold] = useState(10.2);
-      const [minCount, setMinCount] = useState(3);
-
-      const [freqHistory, setFreqHistory] = useState([]);
-      const lastSnapshotLength = useRef(0);
 
       useEffect(() => {
         let active = true;
@@ -1191,15 +1647,21 @@
 
       const windowSizeDisplay = digits.length < 1000 ? digits.length : 1000;
 
-      // Determine highest and lowest percentages for circles
       const percentages = frequency1000.map(f => f.percentage);
       const maxPct = percentages.length ? Math.max(...percentages) : 0;
       const minPct = percentages.length ? Math.min(...percentages) : 0;
       const hasRange = maxPct > minPct;
 
-      // Split digits into two groups
       const upperDigits = frequency1000.filter(f => f.digit <= 4);
       const lowerDigits = frequency1000.filter(f => f.digit >= 5);
+
+      // Build tick objects for chart
+      const ticksForChart = useMemo(() => {
+        return prices.map((price, idx) => ({
+          price,
+          timestamp: Date.now() - (prices.length - idx) * 300 // approximate timestamps
+        }));
+      }, [prices]);
 
       return (
         <div className="min-h-screen bg-background">
@@ -1229,21 +1691,14 @@
                 <label className="text-sm text-muted-foreground">Max ticks:</label>
                 <input type="number" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => e.key === "Enter" && handleMaxTicksChange()} onBlur={handleMaxTicksChange} min={10} max={50000} className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground w-24 focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
-
-              {/* Theme selector */}
               <div className="flex items-center gap-2">
                 <label className="text-sm text-muted-foreground">Theme:</label>
-                <select
-                  value={theme}
-                  onChange={(e) => setTheme(e.target.value)}
-                  className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
+                <select value={theme} onChange={e => setTheme(e.target.value)} className="bg-secondary border border-border rounded px-3 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
                   <option value="dark">Dark</option>
                   <option value="light">Light</option>
                   <option value="system">System</option>
                 </select>
               </div>
-
               <div className="flex gap-2 ml-auto">
                 {!isLive ? <button onClick={startStream} className="bg-primary text-primary-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">▶ Start Live</button> :
                 <button onClick={stopStream} className="bg-destructive text-destructive-foreground px-5 py-1.5 rounded text-sm font-semibold hover:opacity-90 transition-opacity">■ Stop</button>}
@@ -1261,46 +1716,24 @@
               <>
                 <AnalysisCard title="Digit Frequency" subtitle={`${selectedLabel} — last ${windowSizeDisplay} ticks (expected 10.0% each)`}>
                   <div className="flex flex-col items-center space-y-4">
-                    {/* Upper row: digits 0-4 */}
                     <div className="flex justify-center flex-wrap gap-2">
-                      {upperDigits.map((f) => (
-                        <DigitCircle
-                          key={f.digit}
-                          digit={f.digit}
-                          percentage={f.percentage}
-                          isHighest={hasRange && f.percentage === maxPct}
-                          isLowest={hasRange && f.percentage === minPct}
-                          isCurrent={currentDigit === f.digit}
-                        />
+                      {upperDigits.map(f => (
+                        <DigitCircle key={f.digit} digit={f.digit} percentage={f.percentage} isHighest={hasRange && f.percentage === maxPct} isLowest={hasRange && f.percentage === minPct} isCurrent={currentDigit === f.digit} />
                       ))}
                     </div>
-                    {/* Lower row: digits 5-9 */}
                     <div className="flex justify-center flex-wrap gap-2">
-                      {lowerDigits.map((f) => (
-                        <DigitCircle
-                          key={f.digit}
-                          digit={f.digit}
-                          percentage={f.percentage}
-                          isHighest={hasRange && f.percentage === maxPct}
-                          isLowest={hasRange && f.percentage === minPct}
-                          isCurrent={currentDigit === f.digit}
-                        />
+                      {lowerDigits.map(f => (
+                        <DigitCircle key={f.digit} digit={f.digit} percentage={f.percentage} isHighest={hasRange && f.percentage === maxPct} isLowest={hasRange && f.percentage === minPct} isCurrent={currentDigit === f.digit} />
                       ))}
                     </div>
                   </div>
                 </AnalysisCard>
 
-                {/* Range Dominance Scanner with 1.2% threshold */}
                 <RangeDominanceScanner digits={digits} />
-
-                {/* AI Prediction Card */}
                 <AIPrediction digits={digits} />
-
                 <SuggestionCard frequency={frequency1000} />
-
                 <SignalScanner digits={digits} lastDigit={currentDigit} />
 
-                {/* Large last digit display with dynamic color based on streak */}
                 <div className="text-6xl md:text-7xl font-bold text-center py-4 border border-profit/30 rounded-lg bg-profit/5">
                   <span className={getStreakColor(currentStreak)}>
                     {lastPrice ? getLastDigitFromPrice(lastPrice) : '--'}
@@ -1312,50 +1745,30 @@
 
                 <RiseFallCard data={riseFall} />
 
+                {/* TradingView Chart placed below Rise/Fall card */}
+                <TradingViewChart ticks={ticksForChart} />
+
                 <RecentMovements prices={prices} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <AnalysisCard 
-                    title="Over / Under" 
-                    subtitle={`Probability per digit barrier — Current price: ${lastPrice ? lastPrice : '--'}`}
-                  >
+                  <AnalysisCard title="Over / Under" subtitle={`Probability per digit barrier — Current price: ${lastPrice ? lastPrice : '--'}`}>
                     <OverUnderTable data={overUnder} />
                   </AnalysisCard>
-
-                  <AnalysisCard 
-                    title="Matches / Differs" 
-                    subtitle={`Match & differ probability per digit — Current price: ${lastPrice ? lastPrice : '--'}`}
-                  >
+                  <AnalysisCard title="Matches / Differs" subtitle={`Match & differ probability per digit — Current price: ${lastPrice ? lastPrice : '--'}`}>
                     <MatchDifferTable data={matchDiffer} />
                   </AnalysisCard>
-
-                  <AnalysisCard 
-                    title="Even / Odd" 
-                    subtitle={`Even vs odd distribution — Current price: ${lastPrice ? lastPrice : '--'}`}
-                  >
+                  <AnalysisCard title="Even / Odd" subtitle={`Even vs odd distribution — Current price: ${lastPrice ? lastPrice : '--'}`}>
                     <EvenOddDisplay data={evenOdd} />
                   </AnalysisCard>
                 </div>
 
-                {/* Even/Odd Signal Scanner with controls inside, placed right after the Even/Odd card */}
-                <EvenOddSignalScanner
-                  digits={digits}
-                  threshold={threshold}
-                  setThreshold={setThreshold}
-                  minCount={minCount}
-                  setMinCount={setMinCount}
-                />
-
-                {/* Even/Odd Momentum Scanner - placed below Even/Odd Signal Scanner */}
+                <EvenOddSignalScanner digits={digits} threshold={threshold} setThreshold={setThreshold} minCount={minCount} setMinCount={setMinCount} />
                 <EvenOddMomentum frequency1000={frequency1000} />
 
                 <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first) — Yellow ring indicates consecutive same digit">
                   <div className="flex flex-wrap gap-1.5">
                     {recentDigits.map((d, i) => (
-                      <span key={i} className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold 
-                        ${d % 2 === 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}
-                        ${consecutiveFlags[i] ? "ring-2 ring-yellow-400 ring-inset" : ""}
-                      `}>
+                      <span key={i} className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold ${d % 2 === 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"} ${consecutiveFlags[i] ? "ring-2 ring-yellow-400 ring-inset" : ""}`}>
                         {d}
                       </span>
                     ))}
