@@ -402,7 +402,118 @@
       }));
     }
 
-    // ---------- TradingView Chart Component (with immediate loading) ----------
+    // ---------- TradingView Chart Component (exact copy from file) ----------
+    // --- Types (converted to plain JS) ---
+
+    // --- Timeframes ---
+    const TIMEFRAMES = [
+      { label: "1m", seconds: 60 },
+      { label: "5m", seconds: 300 },
+      { label: "15m", seconds: 900 },
+      { label: "30m", seconds: 1800 },
+      { label: "1H", seconds: 3600 },
+      { label: "4H", seconds: 14400 },
+      { label: "12H", seconds: 43200 },
+      { label: "24H", seconds: 86400 },
+    ];
+
+    // --- Aggregate ticks into OHLC candles ---
+    function aggregateOHLC(ticks, intervalSec) {
+      if (ticks.length === 0) return [];
+
+      const intervalMs = intervalSec * 1000;
+      const candles = [];
+      let bucketStart = Math.floor(ticks[0].timestamp / intervalMs) * intervalMs;
+      let open = ticks[0].price;
+      let high = ticks[0].price;
+      let low = ticks[0].price;
+      let close = ticks[0].price;
+
+      for (let i = 0; i < ticks.length; i++) {
+        const t = ticks[i];
+        const thisBucket = Math.floor(t.timestamp / intervalMs) * intervalMs;
+
+        if (thisBucket !== bucketStart) {
+          candles.push({
+            time: bucketStart,
+            open, high, low, close,
+            label: formatTime(bucketStart, intervalSec),
+          });
+          bucketStart = thisBucket;
+          open = t.price;
+          high = t.price;
+          low = t.price;
+          close = t.price;
+        } else {
+          if (t.price > high) high = t.price;
+          if (t.price < low) low = t.price;
+          close = t.price;
+        }
+      }
+
+      // Push the current (incomplete) candle
+      candles.push({
+        time: bucketStart,
+        open, high, low, close,
+        label: formatTime(bucketStart, intervalSec),
+      });
+
+      return candles;
+    }
+
+    function formatTime(ts, intervalSec) {
+      const d = new Date(ts);
+      if (intervalSec >= 86400) return d.toLocaleDateString([], { month: "short", day: "numeric" });
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    // --- Custom Candlestick shape ---
+    function CandlestickShape(props) {
+      const { x, width, payload, yDomain, chartHeight, chartTop } = props;
+      if (!payload) return null;
+
+      const { open, close, high, low } = payload;
+      const isBullish = close >= open;
+      const fillColor = isBullish ? "hsl(142, 70%, 45%)" : "hsl(0, 72%, 51%)";
+      const barWidth = Math.max(width * 0.6, 2);
+      const barX = x + (width - barWidth) / 2;
+
+      if (!yDomain) return null;
+
+      const [yMin, yMax] = yDomain;
+      const priceToY = (p) => chartTop + chartHeight - ((p - yMin) / (yMax - yMin)) * chartHeight;
+
+      const bodyTop = priceToY(Math.max(open, close));
+      const bodyBottom = priceToY(Math.min(open, close));
+      const bodyHeight = Math.max(bodyBottom - bodyTop, 1);
+      const wickX = x + width / 2;
+
+      return (
+        <g>
+          {/* Wick */}
+          <line
+            x1={wickX}
+            y1={priceToY(high)}
+            x2={wickX}
+            y2={priceToY(low)}
+            stroke={fillColor}
+            strokeWidth={1}
+          />
+          {/* Body */}
+          <rect
+            x={barX}
+            y={bodyTop}
+            width={barWidth}
+            height={bodyHeight}
+            fill={isBullish ? fillColor : fillColor}
+            stroke={fillColor}
+            strokeWidth={0.5}
+          />
+        </g>
+      );
+    }
+
+    // --- Main component ---
     function TradingViewChart({ ticks }) {
       const [visible, setVisible] = useState({
         alma: true,
@@ -412,92 +523,53 @@
       });
       const [timeframe, setTimeframe] = useState(60); // seconds
 
-      const TIMEFRAMES = [
-        { label: "1m", seconds: 60 },
-        { label: "5m", seconds: 300 },
-        { label: "15m", seconds: 900 },
-        { label: "30m", seconds: 1800 },
-        { label: "1H", seconds: 3600 },
-        { label: "4H", seconds: 14400 },
-        { label: "12H", seconds: 43200 },
-        { label: "24H", seconds: 86400 },
-      ];
-
-      // Helper to format time label
-      const formatTime = (ts, intervalSec) => {
-        const d = new Date(ts);
-        if (intervalSec >= 86400) return d.toLocaleDateString([], { month: "short", day: "numeric" });
-        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      };
-
-      // Aggregate ticks into OHLC candles
       const candles = useMemo(() => {
-        if (ticks.length === 0) return [];
-        const intervalMs = timeframe * 1000;
-        const result = [];
-        let bucketStart = Math.floor(ticks[0].timestamp / intervalMs) * intervalMs;
-        let open = ticks[0].price;
-        let high = ticks[0].price;
-        let low = ticks[0].price;
-        let close = ticks[0].price;
-
-        for (let i = 0; i < ticks.length; i++) {
-          const t = ticks[i];
-          const thisBucket = Math.floor(t.timestamp / intervalMs) * intervalMs;
-          if (thisBucket !== bucketStart) {
-            result.push({
-              time: bucketStart,
-              open, high, low, close,
-              label: formatTime(bucketStart, timeframe)
-            });
-            bucketStart = thisBucket;
-            open = t.price;
-            high = t.price;
-            low = t.price;
-            close = t.price;
-          } else {
-            if (t.price > high) high = t.price;
-            if (t.price < low) low = t.price;
-            close = t.price;
-          }
-        }
-        // push last candle
-        result.push({
-          time: bucketStart,
-          open, high, low, close,
-          label: formatTime(bucketStart, timeframe)
-        });
-        return result.slice(-100); // keep last 100
+        const all = aggregateOHLC(ticks, timeframe);
+        return all.slice(-100); // last 100 candles
       }, [ticks, timeframe]);
 
-      const candleCloses = useMemo(() => candles.map(c => c.close), [candles]);
+      // Indicators computed on candle close prices
+      const candleCloses = useMemo(() => candles.map((c) => c.close), [candles]);
       const indicators = useMemo(() => computeAllIndicators(candleCloses), [candleCloses]);
 
-      const chartData = useMemo(() =>
-        candles.map((c, i) => ({ ...c, ...indicators[i] })),
+      // Merge candle + indicator data
+      const chartData = useMemo(
+        () =>
+          candles.map((c, i) => ({
+            ...c,
+            ...indicators[i],
+            // For candlestick bar rendering
+            candleRange: [Math.min(c.open, c.close), Math.max(c.open, c.close)],
+            bullish: c.close >= c.open,
+          })),
         [candles, indicators]
       );
 
+      // Y domain for price chart
       const priceExtent = useMemo(() => {
         if (candles.length === 0) return [0, 1];
         let min = Infinity, max = -Infinity;
-        candles.forEach(c => {
+        for (const c of candles) {
           if (c.low < min) min = c.low;
           if (c.high > max) max = c.high;
-        });
+        }
         const pad = (max - min) * 0.05 || 0.001;
         return [min - pad, max + pad];
       }, [candles]);
 
-      const toggle = (key) => setVisible(prev => ({ ...prev, [key]: !prev[key] }));
+      const toggle = (key) =>
+        setVisible((prev) => ({ ...prev, [key]: !prev[key] }));
 
-      // Recharts is guaranteed to be available because script loaded before React
       if (!window.Recharts) {
-        return <p className="text-muted-foreground text-sm text-center py-8">Loading chart library... (if this persists, check your internet)</p>;
+        return <p className="text-muted-foreground text-sm text-center py-8">Loading chart library...</p>;
       }
 
       if (ticks.length < 10) {
-        return <p className="text-muted-foreground text-sm text-center py-8">Collecting ticks for candlestick chart…</p>;
+        return (
+          <p className="text-muted-foreground text-sm text-center py-8">
+            Collecting ticks for candlestick chart…
+          </p>
+        );
       }
 
       const { ResponsiveContainer, ComposedChart, Line, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } = window.Recharts;
@@ -514,7 +586,7 @@
           {/* Timeframe selector + indicator toggles */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1 border border-border">
-              {TIMEFRAMES.map(tf => (
+              {TIMEFRAMES.map((tf) => (
                 <button
                   key={tf.seconds}
                   onClick={() => setTimeframe(tf.seconds)}
@@ -531,12 +603,14 @@
 
             <div className="h-4 w-px bg-border" />
 
-            {[
-              ["alma", "ALMA", "hsl(var(--accent))"],
-              ["donchian", "Donchian", "hsl(var(--highlight))"],
-              ["cci", "CCI", "hsl(280, 70%, 60%)"],
-              ["macd", "MACD", "hsl(330, 70%, 55%)"],
-            ].map(([key, label, color]) => (
+            {(
+              [
+                ["alma", "ALMA", "hsl(var(--accent))"],
+                ["donchian", "Donchian", "hsl(var(--highlight))"],
+                ["cci", "CCI", "hsl(280, 70%, 60%)"],
+                ["macd", "MACD", "hsl(330, 70%, 55%)"],
+              ]
+            ).map(([key, label, color]) => (
               <button
                 key={key}
                 onClick={() => toggle(key)}
@@ -579,7 +653,7 @@
                   tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
                   axisLine={{ stroke: "hsl(var(--border))" }}
                   width={65}
-                  tickFormatter={v => v.toFixed(2)}
+                  tickFormatter={(v) => v.toFixed(2)}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
@@ -589,7 +663,9 @@
                     if (!d) return null;
                     const bull = d.close >= d.open;
                     return (
-                      <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs space-y-1">
+                      <div
+                        className="rounded-lg border border-border bg-card px-3 py-2 text-xs space-y-1"
+                      >
                         <p className="font-semibold text-foreground">{label}</p>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono">
                           <span className="text-muted-foreground">O</span>
@@ -631,32 +707,23 @@
                   </>
                 )}
 
-                {/* Candlestick bodies */}
+                {/* Candle wicks as error-bar style lines */}
+                <Bar dataKey="high" fill="transparent" barSize={1} isAnimationActive={false}>
+                  {chartData.map((entry, i) => (
+                    <Cell key={i} fill="transparent" />
+                  ))}
+                </Bar>
+
+                {/* Candle bodies via custom shape */}
                 <Bar dataKey="close" barSize={8} isAnimationActive={false} shape={(props) => {
-                  const d = props.payload;
-                  if (!d) return null;
-                  const isBull = d.close >= d.open;
-                  const color = isBull ? "hsl(var(--profit))" : "hsl(var(--loss))";
-                  const { x, width } = props;
-                  const [domMin, domMax] = priceExtent;
-                  const bg = props.background;
-                  if (!bg) return null;
-                  const bgY = bg.y, bgH = bg.height;
-                  const pToY = (p) => bgY + bgH - ((p - domMin) / (domMax - domMin)) * bgH;
-
-                  const wickX = x + width / 2;
-                  const bodyTop = pToY(Math.max(d.open, d.close));
-                  const bodyBot = pToY(Math.min(d.open, d.close));
-                  const bodyH = Math.max(bodyBot - bodyTop, 1);
-                  const barW = Math.max(width * 0.7, 2);
-                  const barX = x + (width - barW) / 2;
-
-                  return (
-                    <g>
-                      <line x1={wickX} y1={pToY(d.high)} x2={wickX} y2={pToY(d.low)} stroke={color} strokeWidth={1} />
-                      <rect x={barX} y={bodyTop} width={barW} height={bodyH} fill={color} stroke={color} strokeWidth={0.5} />
-                    </g>
-                  );
+                  // Pass additional needed props to CandlestickShape
+                  const extendedProps = {
+                    ...props,
+                    yDomain: priceExtent,
+                    chartHeight: 300, // approximate; recharts will provide background height
+                    chartTop: props.background?.y || 0,
+                  };
+                  return <CandlestickShape {...extendedProps} />;
                 }} />
 
                 {/* ALMA overlay */}
@@ -686,7 +753,7 @@
                     axisLine={{ stroke: "hsl(var(--border))" }}
                     width={45}
                   />
-                  <Tooltip contentStyle={tooltipStyle} labelFormatter={v => `${v}`} formatter={value => value?.toFixed(2)} />
+                  <Tooltip contentStyle={tooltipStyle} labelFormatter={(v) => `${v}`} formatter={(value) => value?.toFixed(2)} />
                   <ReferenceLine y={100} stroke="hsl(var(--profit))" strokeDasharray="3 3" strokeOpacity={0.5} />
                   <ReferenceLine y={-100} stroke="hsl(var(--loss))" strokeDasharray="3 3" strokeOpacity={0.5} />
                   <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.3} />
@@ -710,9 +777,9 @@
                     tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
                     axisLine={{ stroke: "hsl(var(--border))" }}
                     width={55}
-                    tickFormatter={v => v.toFixed(3)}
+                    tickFormatter={(v) => v.toFixed(3)}
                   />
-                  <Tooltip contentStyle={tooltipStyle} labelFormatter={v => `${v}`} formatter={value => value?.toFixed(5)} />
+                  <Tooltip contentStyle={tooltipStyle} labelFormatter={(v) => `${v}`} formatter={(value) => value?.toFixed(5)} />
                   <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.3} />
                   <Bar dataKey="macdHist" name="Histogram" isAnimationActive={false}>
                     {chartData.map((entry, i) => (
@@ -1712,7 +1779,7 @@
 
                 <RiseFallCard data={riseFall} />
 
-                {/* TradingView Chart – now loads as soon as 10 ticks are collected */}
+                {/* TradingView Chart – exact copy from file */}
                 <TradingViewChart ticks={ticksForChart} />
 
                 <RecentMovements prices={prices} />
