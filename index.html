@@ -508,11 +508,8 @@
       );
     }
 
-    // ---------- Even/Odd Signal Scanner (last 1000 ticks) with configurable threshold and min count ----------
+    // ---------- Even/Odd Signal Scanner (updated with new rule) ----------
     function EvenOddSignalScanner({ digits, threshold, setThreshold, minCount, setMinCount }) {
-      // New state for operator: '≥' or '≤'
-      const [operator, setOperator] = useState('≥');
-
       const W = 1000;
       const len = digits.length;
       const recentDigits = len <= W ? digits : digits.slice(len - W);
@@ -523,28 +520,54 @@
       const evenDigits = [0,2,4,6,8];
       const oddDigits = [1,3,5,7,9];
 
-      const evenAboveThreshold = evenDigits.filter(d => 
-        operator === '≥' ? percentages[d] >= threshold : percentages[d] <= threshold
-      ).length;
-      const oddAboveThreshold = oddDigits.filter(d => 
-        operator === '≥' ? percentages[d] >= threshold : percentages[d] <= threshold
-      ).length;
+      // Find highest digit and its percentage
+      let maxIdx = 0;
+      let maxPct = percentages[0];
+      for (let i = 1; i < 10; i++) {
+        if (percentages[i] > maxPct) {
+          maxPct = percentages[i];
+          maxIdx = i;
+        }
+      }
+
+      const highestDigit = maxIdx;
+      const highestPct = maxPct;
+
+      // Check conditions for even signal
+      const highestIsEven = evenDigits.includes(highestDigit);
+      const highestEvenOk = highestIsEven && highestPct >= 11.2;
+      const otherEvensOk = evenDigits
+        .filter(d => d !== highestDigit)
+        .every(d => percentages[d] > 10.0);
+      const evenSignal = highestEvenOk && otherEvensOk;
+
+      // Check conditions for odd signal
+      const highestIsOdd = oddDigits.includes(highestDigit);
+      const highestOddOk = highestIsOdd && highestPct >= 11.2;
+      const otherOddsOk = oddDigits
+        .filter(d => d !== highestDigit)
+        .every(d => percentages[d] > 10.0);
+      const oddSignal = highestIsOdd && highestOddOk && otherOddsOk;
 
       const signal = useMemo(() => {
-        if (evenAboveThreshold >= minCount && oddAboveThreshold >= minCount) {
-          return { type: 'BOTH OR IGNORE', message: 'TRADE BOTH OR IGNORE' };
-        } else if (evenAboveThreshold >= minCount) {
+        if (evenSignal && oddSignal) {
+          return { type: 'BOTH', message: 'TRADE BOTH OR IGNORE' };
+        } else if (evenSignal) {
           return { type: 'EVEN', message: 'TRADE EVEN' };
-        } else if (oddAboveThreshold >= minCount) {
+        } else if (oddSignal) {
           return { type: 'ODD', message: 'TRADE ODD' };
         }
         return null;
-      }, [evenAboveThreshold, oddAboveThreshold, minCount]);
+      }, [evenSignal, oddSignal]);
 
       const borderColor = signal?.type === 'EVEN' ? 'border-profit' : signal?.type === 'ODD' ? 'border-loss' : signal?.type === 'BOTH' ? 'border-accent' : 'border-border';
 
+      // Counts of digits >10% for display (optional)
+      const evenAbove10 = evenDigits.filter(d => percentages[d] > 10.0).length;
+      const oddAbove10 = oddDigits.filter(d => percentages[d] > 10.0).length;
+
       return (
-        <AnalysisCard title="🎯 Even/Odd Signal Scanner" subtitle="Controls just below Even/Odd card">
+        <AnalysisCard title="🎯 Even/Odd Signal Scanner" subtitle="Highest digit must be ≥11.2% and all others >10%">
           <div className="flex flex-wrap items-center gap-4 mb-4 pb-2 border-b border-border">
             <div className="flex items-center gap-2">
               <label className="text-xs text-muted-foreground">Threshold %:</label>
@@ -557,17 +580,6 @@
                 max="100"
                 className="bg-secondary border border-border rounded px-2 py-1 text-sm font-mono text-foreground w-20 focus:outline-none focus:ring-1 focus:ring-primary"
               />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted-foreground">Operator:</label>
-              <select
-                value={operator}
-                onChange={(e) => setOperator(e.target.value)}
-                className="bg-secondary border border-border rounded px-2 py-1 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="≥">≥ (greater or equal)</option>
-                <option value="≤">≤ (less or equal)</option>
-              </select>
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs text-muted-foreground">Min digits:</label>
@@ -583,6 +595,10 @@
             </div>
           </div>
 
+          <div className="space-y-2 mb-2 text-xs">
+            <p>Highest digit: <span className="font-mono">{highestDigit}</span> – <span className="font-mono">{highestPct.toFixed(1)}%</span></p>
+          </div>
+
           <div className={`p-4 rounded-lg border-4 ${borderColor} transition-colors duration-300`}>
             {signal ? (
               <div className="text-center">
@@ -594,7 +610,7 @@
               </div>
             )}
             <div className="mt-2 text-xs text-muted-foreground text-center">
-              Even digits {operator} {threshold.toFixed(1)}%: {evenAboveThreshold} | Odd digits {operator} {threshold.toFixed(1)}%: {oddAboveThreshold}
+              Even digits >10%: {evenAbove10} | Odd digits >10%: {oddAbove10}
             </div>
           </div>
         </AnalysisCard>
@@ -1279,7 +1295,7 @@
                   </AnalysisCard>
                 </div>
 
-                {/* Even/Odd Signal Scanner with controls inside, placed right after the Even/Odd card */}
+                {/* Even/Odd Signal Scanner with new rule */}
                 <EvenOddSignalScanner
                   digits={digits}
                   threshold={threshold}
