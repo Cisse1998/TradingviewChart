@@ -533,10 +533,11 @@
       digits1000.forEach(d => counts[d]++);
       const percentages = counts.map(c => (c / digits1000.length) * 100);
 
-      // Find top two digits by percentage
+      // Find top two and bottom two digits by percentage
       const digitEntries = percentages.map((p, digit) => ({ digit, percentage: p }));
       const sorted = [...digitEntries].sort((a, b) => b.percentage - a.percentage);
       const topTwo = sorted.slice(0, 2).map(entry => entry.digit);
+      const bottomTwo = sorted.slice(-2).map(entry => entry.digit).reverse(); // lowest first
 
       const evenDigits = [0,2,4,6,8];
       const oddDigits = [1,3,5,7,9];
@@ -619,7 +620,10 @@
               Even digits {operator} {threshold.toFixed(1)}%: {evenAboveThreshold} | Odd digits {operator} {threshold.toFixed(1)}%: {oddAboveThreshold}
             </div>
             <div className="mt-1 text-xs text-muted-foreground text-center">
-              Top two digits: {topTwo[0]} & {topTwo[1]} {topTwoEven ? '(both even)' : topTwoOdd ? '(both odd)' : '(mixed)'}
+              Top two: {topTwo[0]} ({percentages[topTwo[0]].toFixed(1)}%) & {topTwo[1]} ({percentages[topTwo[1]].toFixed(1)}%) {topTwoEven ? '(both even)' : topTwoOdd ? '(both odd)' : '(mixed)'}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground text-center">
+              Least two: {bottomTwo[0]} ({percentages[bottomTwo[0]].toFixed(1)}%) & {bottomTwo[1]} ({percentages[bottomTwo[1]].toFixed(1)}%)
             </div>
           </div>
         </AnalysisCard>
