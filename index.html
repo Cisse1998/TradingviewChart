@@ -2,53 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Deriv Live Tick Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digits Analyzer</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { background:#0f0f0f; color:#fff; font-family: monospace; }
+  </style>
 </head>
 
-<body class="bg-black text-white">
+<body>
 <div id="root"></div>
 
 <script type="text/babel">
 
 const { useState, useEffect, useRef } = React;
 
-/* =========================
-   ✅ DERIV CONNECTION FIXED
-========================= */
+/* ===================== FIXED DERIV CONNECTION ===================== */
+
 const DERIV_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
 function useDerivStream(symbol, onTick, onHistory) {
   const wsRef = useRef(null);
   const reconnectRef = useRef(null);
+  const subscriptionIdRef = useRef(null);
 
   useEffect(() => {
     if (!symbol) return;
 
-    let ws;
-    let pingInterval;
+    let isMounted = true;
 
     const connect = () => {
-      ws = new WebSocket(DERIV_WS_URL);
+      const ws = new WebSocket(DERIV_WS_URL);
       wsRef.current = ws;
 
       ws.onopen = () => {
         console.log("✅ Connected");
 
-        // keep alive
-        pingInterval = setInterval(() => {
-          ws.send(JSON.stringify({ ping: 1 }));
-        }, 30000);
-
-        // get history
         ws.send(JSON.stringify({
           ticks_history: symbol,
-          adjust_start_time: 1,
+          count: 1000,
           end: "latest",
-          count: 100,
           style: "ticks"
         }));
       };
@@ -56,115 +54,118 @@ function useDerivStream(symbol, onTick, onHistory) {
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
-        console.log("RAW:", data);
-
-        // history
+        // HISTORY
         if (data.msg_type === "history") {
-          const prices = data.history.prices;
-          onHistory(prices);
+          const prices = data.history.prices || [];
+          const times = data.history.times || [];
 
-          // subscribe live
+          const ticks = prices.map((p, i) => ({
+            price: parseFloat(p),
+            time: times[i]
+          }));
+
+          onHistory(ticks);
+
           ws.send(JSON.stringify({
             ticks: symbol,
             subscribe: 1
           }));
         }
 
-        // live ticks
+        // LIVE TICKS
         if (data.msg_type === "tick") {
-          onTick(data.tick.quote);
-        }
+          subscriptionIdRef.current = data.subscription?.id;
 
-        if (data.error) {
-          console.error("Error:", data.error);
+          onTick(
+            data.tick.quote,
+            data.tick.epoch
+          );
         }
       };
 
       ws.onclose = () => {
-        console.log("❌ Disconnected");
-
-        clearInterval(pingInterval);
-
-        reconnectRef.current = setTimeout(() => {
-          console.log("🔄 Reconnecting...");
-          connect();
-        }, 2000);
+        console.log("🔌 Reconnecting...");
+        if (isMounted) {
+          reconnectRef.current = setTimeout(connect, 2000);
+        }
       };
 
-      ws.onerror = (err) => {
-        console.error("WS Error:", err);
-      };
+      ws.onerror = (e) => console.error(e);
     };
 
     connect();
 
     return () => {
-      clearInterval(pingInterval);
-      clearTimeout(reconnectRef.current);
-      if (wsRef.current) wsRef.current.close();
+      isMounted = false;
+
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+
+      if (wsRef.current) {
+        if (subscriptionIdRef.current) {
+          wsRef.current.send(JSON.stringify({
+            forget: subscriptionIdRef.current
+          }));
+        }
+        wsRef.current.close();
+      }
     };
   }, [symbol]);
 }
 
-/* =========================
-   UI APP
-========================= */
+/* ===================== APP ===================== */
 
 function App() {
   const [symbol, setSymbol] = useState("R_100");
-  const [ticks, setTicks] = useState([]);
-  const [lastPrice, setLastPrice] = useState(null);
+  const [digits, setDigits] = useState([]);
+  const [price, setPrice] = useState(null);
+
+  const getLastDigit = (price) => {
+    const str = price.toString();
+    return parseInt(str[str.length - 1]);
+  };
 
   useDerivStream(
     symbol,
     (price) => {
-      setLastPrice(price);
-      setTicks(prev => [...prev, price].slice(-50));
+      const digit = getLastDigit(price);
+
+      setPrice(price);
+
+      setDigits(prev => {
+        const next = [...prev, digit];
+        return next.slice(-1000);
+      });
     },
     (history) => {
-      setTicks(history.slice(-50));
-      setLastPrice(history[history.length - 1]);
+      const d = history.map(t => getLastDigit(t.price));
+      setDigits(d);
     }
   );
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div style={{padding:20}}>
+      <h1>📊 Deriv Live Digits</h1>
 
-      <h1 className="text-2xl font-bold mb-4">
-        🔴 Deriv Live Tick Stream
+      <select value={symbol} onChange={e=>setSymbol(e.target.value)}>
+        <option value="R_100">Volatility 100</option>
+        <option value="R_50">Volatility 50</option>
+        <option value="R_25">Volatility 25</option>
+      </select>
+
+      <h2 style={{marginTop:20}}>
+        Last Price: {price}
+      </h2>
+
+      <h1 style={{fontSize:60}}>
+        {price ? getLastDigit(price) : "--"}
       </h1>
 
-      <div className="mb-4">
-        <select
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
-          className="bg-gray-800 p-2 rounded"
-        >
-          <option value="R_100">Volatility 100</option>
-          <option value="R_50">Volatility 50</option>
-          <option value="R_25">Volatility 25</option>
-        </select>
-      </div>
-
-      <div className="text-4xl font-bold mb-6 text-green-400">
-        {lastPrice ? lastPrice : "Connecting..."}
-      </div>
-
-      <div className="bg-gray-900 p-4 rounded h-64 overflow-y-auto">
-        {ticks.map((t, i) => (
-          <div key={i} className="text-sm border-b border-gray-700 py-1">
-            {t}
-          </div>
-        ))}
-      </div>
-
+      <p>Ticks: {digits.length}</p>
     </div>
   );
 }
 
-/* ========================= */
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 
 </script>
 </body>
