@@ -81,8 +81,7 @@
     const { useState, useMemo, useCallback, useEffect, useRef } = React;
 
     // ---------- constants ----------
-    const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=114747";
-    const API_TOKEN = "AlBNURZnARhdX89";
+    const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
     const VOLATILITY_SYMBOLS = [
       // Jump Indices
       { value: "JD10", label: "Jump 10 Index" },
@@ -140,11 +139,10 @@
       }
     }
 
-    // ---------- WebSocket manager that authorizes, fetches history, then subscribes ----------
+    // ---------- WebSocket manager that fetches history and then subscribes (public, no auth) ----------
     function useDerivStream(symbol, onTick, onHistory) {
       const wsRef = useRef(null);
       const subscriptionIdRef = useRef(null);
-      const isAuthorizedRef = useRef(false);
 
       useEffect(() => {
         if (!symbol) return;
@@ -159,43 +157,20 @@
         wsRef.current = ws;
 
         ws.onopen = () => {
-          console.log("WebSocket opened, sending authorize");
-          // Send authorization request
-          ws.send(JSON.stringify({ authorize: API_TOKEN }));
+          // Request tick history (last 1000 ticks)
+          ws.send(JSON.stringify({
+            ticks_history: symbol,
+            adjust_start_time: 1,
+            end: "latest",
+            start: 1,
+            style: "ticks",
+            count: 1000
+          }));
         };
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-
-            // Handle authorization response
-            if (data.msg_type === 'authorize') {
-              if (data.error) {
-                console.error("Authorization failed:", data.error);
-                // Fallback to public mode: still try to get history without token
-                isAuthorizedRef.current = false;
-                ws.send(JSON.stringify({
-                  ticks_history: symbol,
-                  adjust_start_time: 1,
-                  end: "latest",
-                  start: 1,
-                  style: "ticks",
-                  count: 1000
-                }));
-              } else {
-                console.log("Authorization successful");
-                isAuthorizedRef.current = true;
-                // After auth, request tick history
-                ws.send(JSON.stringify({
-                  ticks_history: symbol,
-                  adjust_start_time: 1,
-                  end: "latest",
-                  start: 1,
-                  style: "ticks",
-                  count: 1000
-                }));
-              }
-            }
 
             // Handle history response
             if (data.msg_type === 'history') {
@@ -204,7 +179,7 @@
                 const times = data.history.times;
                 const ticks = prices.map((price, idx) => ({
                   price: parseFloat(price),
-                  timestamp: times[idx] * 1000
+                  timestamp: times[idx] * 1000 // seconds to ms
                 }));
                 onHistory(ticks);
               }
@@ -217,11 +192,6 @@
               subscriptionIdRef.current = data.tick.id;
               const rawPrice = data.tick.quote;
               onTick(rawPrice, data.tick.epoch * 1000);
-            }
-
-            // Handle subscription acknowledgment (optional)
-            if (data.msg_type === 'tick' && data.subscription) {
-              // subscription confirmed
             }
 
             // Handle errors
@@ -317,7 +287,7 @@
       };
     }
 
-    // ---------- components (unchanged, but table tags fixed) ----------
+    // ---------- components (all as before, but table tags fixed) ----------
     function AnalysisCard({ title, subtitle, children }) {
       return (
         <div className="bg-card border border-border rounded-lg p-5">
