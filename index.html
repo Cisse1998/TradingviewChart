@@ -81,7 +81,8 @@
     const { useState, useMemo, useCallback, useEffect, useRef } = React;
 
     // ---------- constants ----------
-    const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=114747&token=AlBNURZnARhdX89";
+    const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=114747";
+    const API_TOKEN = "AlBNURZnARhdX89";
     const VOLATILITY_SYMBOLS = [
       // Jump Indices
       { value: "JD10", label: "Jump 10 Index" },
@@ -139,10 +140,11 @@
       }
     }
 
-    // ---------- WebSocket manager that fetches history and then subscribes ----------
+    // ---------- WebSocket manager that authorizes, fetches history, then subscribes ----------
     function useDerivStream(symbol, onTick, onHistory) {
       const wsRef = useRef(null);
       const subscriptionIdRef = useRef(null);
+      const isAuthorizedRef = useRef(false);
 
       useEffect(() => {
         if (!symbol) return;
@@ -157,30 +159,52 @@
         wsRef.current = ws;
 
         ws.onopen = () => {
-          // First, request tick history (last 1000 ticks)
-          ws.send(JSON.stringify({
-            ticks_history: symbol,
-            adjust_start_time: 1,
-            end: "latest",
-            start: 1,
-            style: "ticks",
-            count: 1000
-          }));
+          console.log("WebSocket opened, sending authorize");
+          // Send authorization request
+          ws.send(JSON.stringify({ authorize: API_TOKEN }));
         };
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
 
+            // Handle authorization response
+            if (data.msg_type === 'authorize') {
+              if (data.error) {
+                console.error("Authorization failed:", data.error);
+                // Fallback to public mode: still try to get history without token
+                isAuthorizedRef.current = false;
+                ws.send(JSON.stringify({
+                  ticks_history: symbol,
+                  adjust_start_time: 1,
+                  end: "latest",
+                  start: 1,
+                  style: "ticks",
+                  count: 1000
+                }));
+              } else {
+                console.log("Authorization successful");
+                isAuthorizedRef.current = true;
+                // After auth, request tick history
+                ws.send(JSON.stringify({
+                  ticks_history: symbol,
+                  adjust_start_time: 1,
+                  end: "latest",
+                  start: 1,
+                  style: "ticks",
+                  count: 1000
+                }));
+              }
+            }
+
             // Handle history response
             if (data.msg_type === 'history') {
               if (data.history && data.history.prices && data.history.times) {
                 const prices = data.history.prices;
                 const times = data.history.times;
-                // Create tick objects with timestamp
                 const ticks = prices.map((price, idx) => ({
                   price: parseFloat(price),
-                  timestamp: times[idx] * 1000 // seconds to ms
+                  timestamp: times[idx] * 1000
                 }));
                 onHistory(ticks);
               }
@@ -199,6 +223,11 @@
             if (data.msg_type === 'tick' && data.subscription) {
               // subscription confirmed
             }
+
+            // Handle errors
+            if (data.error) {
+              console.error("Deriv API error:", data.error);
+            }
           } catch (e) {
             console.error("Error parsing message", e);
           }
@@ -208,9 +237,12 @@
           console.error("WebSocket error", err);
         };
 
+        ws.onclose = (event) => {
+          console.log("WebSocket closed", event.code, event.reason);
+        };
+
         return () => {
           if (wsRef.current) {
-            // Unsubscribe if we have an id
             if (subscriptionIdRef.current) {
               wsRef.current.send(JSON.stringify({ forget: subscriptionIdRef.current }));
             }
@@ -221,7 +253,7 @@
       }, [symbol, onTick, onHistory]);
     }
 
-    // ---------- analysis functions ----------
+    // ---------- analysis functions (unchanged) ----------
     function computeDigitFrequency(digits) {
       const total = digits.length;
       const counts = Array(10).fill(0);
@@ -229,7 +261,6 @@
       return counts.map((count, digit) => ({ digit, count, percentage: total > 0 ? (count / total) * 100 : 0 }));
     }
 
-    // compute frequency for a given set of digits (used for both all and last 1000)
     function computeFrequency(digits) {
       const total = digits.length;
       if (total === 0) return [];
@@ -238,7 +269,6 @@
       return counts.map((count, digit) => ({ digit, count, percentage: (count / total) * 100 }));
     }
 
-    // keep only last N digits
     function keepLastN(digits, n) {
       if (digits.length <= n) return digits;
       return digits.slice(digits.length - n);
@@ -265,7 +295,6 @@
       return { evenCount, evenPercentage: total > 0 ? (evenCount / total) * 100 : 0, oddCount: total - evenCount, oddPercentage: total > 0 ? ((total - evenCount) / total) * 100 : 0 };
     }
 
-    // Rise/Fall analysis
     function computeRiseFall(prices) {
       if (prices.length < 2) return { riseCount: 0, fallCount: 0, sameCount: 0, totalMovements: 0, risePercent: 0, fallPercent: 0 };
       let rise = 0, fall = 0, same = 0;
@@ -288,7 +317,7 @@
       };
     }
 
-    // ---------- components ----------
+    // ---------- components (unchanged, but table tags fixed) ----------
     function AnalysisCard({ title, subtitle, children }) {
       return (
         <div className="bg-card border border-border rounded-lg p-5">
@@ -298,9 +327,7 @@
       );
     }
 
-    // DigitCircle with custom colors based on ranking
     function DigitCircle({ digit, percentage, rank, isCurrent }) {
-      // rank: 1 = highest, 2 = second highest, -1 = lowest, -2 = second lowest, 0 = normal
       let bgClass = "";
       let textClass = "";
       let borderClass = "";
@@ -321,7 +348,6 @@
         textClass = "text-yellow-400";
         borderClass = "border-yellow-500";
       } else {
-        // default even/odd coloring
         bgClass = digit % 2 === 0 ? "bg-profit/15" : "bg-loss/15";
         textClass = digit % 2 === 0 ? "text-profit" : "text-loss";
         borderClass = "border-border";
@@ -352,7 +378,6 @@
       );
     }
 
-    // Corrected OverUnderTable with proper JSX table tags
     function OverUnderTable({ data }) {
       return (
         <div className="overflow-x-auto">
@@ -378,7 +403,6 @@
       );
     }
 
-    // Corrected MatchDifferTable
     function MatchDifferTable({ data }) {
       return (
         <div className="overflow-x-auto">
@@ -404,7 +428,6 @@
       );
     }
 
-    // Rise/Fall Card
     function RiseFallCard({ data }) {
       return (
         <AnalysisCard title="📊 Rise / Fall Analysis" subtitle="Tick-to-tick price movement">
@@ -431,7 +454,6 @@
       );
     }
 
-    // ---------- trading suggestions card (uses last 1000 ticks) ----------
     function SuggestionCard({ frequency }) {
       if (!frequency || frequency.length === 0) return null;
       const deviations = frequency.map(f => ({ digit: f.digit, dev: f.percentage - 10 }));
@@ -457,7 +479,6 @@
       );
     }
 
-    // ---------- Signal Scanner Component (uses last 1000 ticks) ----------
     function SignalScanner({ digits1000, lastDigit }) {
       const [scannerActive, setScannerActive] = useState(false);
       const [lastSignal, setLastSignal] = useState(null);
@@ -554,7 +575,6 @@
       );
     }
 
-    // Recent Movements Card (displays R/F/= for last 50 ticks)
     function RecentMovements({ prices }) {
       const getMovement = (index) => {
         if (index === 0 || prices.length < 2) return '—';
@@ -589,7 +609,6 @@
       );
     }
 
-    // ---------- Even/Odd Signal Scanner with new color-coded conditions ----------
     function EvenOddSignalScanner({ digits1000, threshold, setThreshold, minCount, setMinCount }) {
       const [operator, setOperator] = useState('≥');
 
@@ -597,22 +616,18 @@
       digits1000.forEach(d => counts[d]++);
       const percentages = counts.map(c => (c / digits1000.length) * 100);
 
-      // Sort digits by percentage
       const digitEntries = percentages.map((p, digit) => ({ digit, percentage: p }));
       const sorted = [...digitEntries].sort((a, b) => b.percentage - a.percentage);
-      const topTwo = sorted.slice(0, 2); // indices 0 and 1
-      const bottomTwo = sorted.slice(-2).reverse(); // lowest two, reversed so that lowest is first
+      const topTwo = sorted.slice(0, 2);
+      const bottomTwo = sorted.slice(-2).reverse();
 
-      // Conditions for EVEN signal:
       const greenBlueEven = topTwo[0].digit % 2 === 0 && topTwo[1].digit % 2 === 0;
       const greenBluePctOK = topTwo[0].percentage >= 11 && topTwo[1].percentage >= 11;
       const redYellowOdd = bottomTwo[0].digit % 2 === 1 && bottomTwo[1].digit % 2 === 1;
       const redPctOK = bottomTwo[0].percentage <= 8.6;
       const yellowPctOK = bottomTwo[1].percentage < 9.5;
-
       const evenSignal = greenBlueEven && greenBluePctOK && redYellowOdd && redPctOK && yellowPctOK;
 
-      // Conditions for ODD signal:
       const greenBlueOdd = topTwo[0].digit % 2 === 1 && topTwo[1].digit % 2 === 1;
       const redYellowEven = bottomTwo[0].digit % 2 === 0 && bottomTwo[1].digit % 2 === 0;
       const oddSignal = greenBlueOdd && greenBluePctOK && redYellowEven && redPctOK && yellowPctOK;
@@ -620,7 +635,6 @@
       const signal = evenSignal ? { type: 'EVEN', message: 'TRADE EVEN' } : oddSignal ? { type: 'ODD', message: 'TRADE ODD' } : null;
       const borderColor = signal?.type === 'EVEN' ? 'border-profit' : signal?.type === 'ODD' ? 'border-loss' : 'border-border';
 
-      // Helper for digit display colors
       const getColorForDigit = (digit, percentage, rank) => {
         if (rank === 1) return { bg: "bg-green-500/20", text: "text-green-400", border: "border-green-500" };
         if (rank === 2) return { bg: "bg-blue-500/20", text: "text-blue-400", border: "border-blue-500" };
@@ -684,7 +698,6 @@
               Bottom two digits (red/yellow) both {signal?.type === 'EVEN' ? 'odd' : 'even'} with red ≤8.6% and yellow &lt;9.5%
             </div>
 
-            {/* Show top two and bottom two digits with colors */}
             <div className="mt-3 border-t border-border pt-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-highlight mb-2">Top digits</p>
               <div className="flex justify-around gap-2">
@@ -723,7 +736,6 @@
       );
     }
 
-    // ---------- Trade Predictions Panel ----------
     function TradePredictions({ frequency1000, overUnder, evenOdd, riseFall }) {
       if (!frequency1000 || frequency1000.length === 0) return null;
 
@@ -828,9 +840,8 @@
       );
     }
 
-    // ---------- Range Dominance Scanner (0-4 vs 5-9) with 1.2% threshold ----------
     function RangeDominanceScanner({ digits1000 }) {
-      const N = 90; // expected ticks in 30s
+      const N = 90;
       const len = digits1000.length;
       if (len === 0) return null;
 
@@ -838,32 +849,20 @@
       digits1000.forEach(d => counts[d]++);
       const windowSize = digits1000.length;
 
-      // Probabilities for each digit
       const P = counts.map(c => c / windowSize);
-
-      // Sum for ranges 0-4 and 5-9
       const P04 = P.slice(0, 5).reduce((a, b) => a + b, 0);
       const P59 = P.slice(5, 10).reduce((a, b) => a + b, 0);
-
-      // Expected counts in next 30s
       const E04 = P04 * N;
       const E59 = P59 * N;
-
-      // Dominance D = |P04 - 0.5|
       const D = Math.abs(P04 - 0.5);
-
-      // Determine signal with 1.2% threshold
       const threshold = 0.012;
       const hasSignal = D >= threshold;
 
-      let signalType = null;
       let message = '';
       if (hasSignal) {
         if (P04 > 0.5) {
-          signalType = 'UNDER_5';
           message = `🟢 0–4 dominance expected (${E04.toFixed(1)} vs ${E59.toFixed(1)} appearances) – Trade: Digit Under 7/6/5`;
         } else {
-          signalType = 'OVER_4';
           message = `🟢 5–9 dominance expected (${E59.toFixed(1)} vs ${E04.toFixed(1)} appearances) – Trade: Digit Over 2/3/4`;
         }
       }
@@ -893,13 +892,8 @@
             </div>
 
             <div className={`mt-3 p-3 rounded-lg border-2 text-center ${hasSignal ? (P04 > 0.5 ? 'border-profit bg-profit/10' : 'border-accent bg-accent/10') : 'border-border bg-secondary/50'}`}>
-              {hasSignal ? (
-                <span className="font-bold">{message}</span>
-              ) : (
-                <span className="text-muted-foreground">🔴 NO SIGNAL – market too balanced (D &lt; 1.2%)</span>
-              )}
+              {hasSignal ? <span className="font-bold">{message}</span> : <span className="text-muted-foreground">🔴 NO SIGNAL – market too balanced (D &lt; 1.2%)</span>}
             </div>
-
             <div className="text-xs text-muted-foreground border-t border-border pt-2">
               Based on last {windowSize} ticks | N=90 ticks (≈30s) | threshold 1.2%
             </div>
@@ -908,7 +902,6 @@
       );
     }
 
-    // ---------- AI-Enhanced Digit Prediction Component ----------
     function AIPrediction({ digits }) {
       const [lastDigit, setLastDigit] = useState(null);
       useEffect(() => {
@@ -917,7 +910,7 @@
 
       const prediction = useMemo(() => {
         const len = digits.length;
-        if (len < 100) return null; // need at least 100 ticks for micro window
+        if (len < 100) return null;
 
         const getCounts = (windowSize) => {
           const start = Math.max(0, len - windowSize);
@@ -930,7 +923,6 @@
         const counts100 = getCounts(100);
         const counts500 = getCounts(500);
         const counts1000 = getCounts(1000);
-
         const total100 = Math.min(100, len);
         const total500 = Math.min(500, len);
         const total1000 = Math.min(1000, len);
@@ -982,12 +974,10 @@
         const confidenceOk = confidence >= 0.04;
 
         let tradeType = 'WAIT';
-        let target = null;
         if (entropyOk && confidenceOk) {
           for (let i = 0; i < 10; i++) {
             if (weighted[i] > 0.18) {
               tradeType = `Match Digit ${i}`;
-              target = i;
               break;
             }
           }
@@ -1001,62 +991,28 @@
                 tradeType = 'Odd';
               } else {
                 const maxDigit = finalScore.indexOf(maxScore);
-                if (maxDigit <= 4) {
-                  tradeType = 'Digit Under 5';
-                } else {
-                  tradeType = 'Digit Over 4';
-                }
+                tradeType = maxDigit <= 4 ? 'Digit Under 5' : 'Digit Over 4';
               }
             }
           }
         }
 
-        return {
-          weighted,
-          entropy: entropy.toFixed(3),
-          entropyOk,
-          confidence: confidence.toFixed(4),
-          confidenceOk,
-          tradeType,
-          finalScore,
-        };
+        return { weighted, entropy: entropy.toFixed(3), entropyOk, confidence: confidence.toFixed(4), confidenceOk, tradeType };
       }, [digits, lastDigit]);
 
       if (!prediction) {
-        return (
-          <AnalysisCard title="🧠 AI-Enhanced Digit Prediction" subtitle="Waiting for enough data (≥100 ticks)">
-            <div className="text-center text-muted-foreground py-4">Collecting data...</div>
-          </AnalysisCard>
-        );
+        return <AnalysisCard title="🧠 AI-Enhanced Digit Prediction" subtitle="Waiting for enough data (≥100 ticks)"><div className="text-center text-muted-foreground py-4">Collecting data...</div></AnalysisCard>;
       }
 
       return (
         <AnalysisCard title="🧠 AI-Enhanced Digit Prediction" subtitle="Multi‑window + entropy + transitions + confidence gate">
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-muted-foreground">Entropy: </span>
-                <span className={prediction.entropyOk ? 'text-profit' : 'text-loss'}>
-                  {prediction.entropy} {prediction.entropyOk ? '✓' : '✗'}
-                </span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Confidence: </span>
-                <span className={prediction.confidenceOk ? 'text-profit' : 'text-loss'}>
-                  {prediction.confidence} {prediction.confidenceOk ? '✓' : '✗'}
-                </span>
-              </div>
+              <div><span className="text-muted-foreground">Entropy: </span><span className={prediction.entropyOk ? 'text-profit' : 'text-loss'}>{prediction.entropy} {prediction.entropyOk ? '✓' : '✗'}</span></div>
+              <div><span className="text-muted-foreground">Confidence: </span><span className={prediction.confidenceOk ? 'text-profit' : 'text-loss'}>{prediction.confidence} {prediction.confidenceOk ? '✓' : '✗'}</span></div>
             </div>
-            <div className="text-center text-lg font-bold">
-              {prediction.tradeType === 'WAIT' ? (
-                <span className="text-yellow-400">⏳ WAIT</span>
-              ) : (
-                <span className="text-profit">✅ {prediction.tradeType}</span>
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Weighted scores: {prediction.weighted.map((w, i) => `${i}:${(w*100).toFixed(1)}%`).join('  ')}
-            </div>
+            <div className="text-center text-lg font-bold">{prediction.tradeType === 'WAIT' ? <span className="text-yellow-400">⏳ WAIT</span> : <span className="text-profit">✅ {prediction.tradeType}</span>}</div>
+            <div className="text-xs text-muted-foreground">Weighted scores: {prediction.weighted.map((w, i) => `${i}:${(w*100).toFixed(1)}%`).join('  ')}</div>
           </div>
         </AnalysisCard>
       );
@@ -1075,21 +1031,15 @@
       const [freqHistory, setFreqHistory] = useState([]);
       const lastSnapshotLength = useRef(0);
 
-      // Apply theme
       useEffect(() => {
         const applyTheme = (mode) => {
           const body = document.body;
-          if (mode === 'dark') {
-            body.classList.remove('light-theme');
-          } else if (mode === 'light') {
-            body.classList.add('light-theme');
-          } else if (mode === 'system') {
+          if (mode === 'dark') body.classList.remove('light-theme');
+          else if (mode === 'light') body.classList.add('light-theme');
+          else if (mode === 'system') {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) {
-              body.classList.remove('light-theme');
-            } else {
-              body.classList.add('light-theme');
-            }
+            if (prefersDark) body.classList.remove('light-theme');
+            else body.classList.add('light-theme');
           }
           localStorage.setItem('theme', mode);
         };
@@ -1097,21 +1047,16 @@
         if (theme === 'system') {
           const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
           const handler = (e) => {
-            if (e.matches) {
-              document.body.classList.remove('light-theme');
-            } else {
-              document.body.classList.add('light-theme');
-            }
+            if (e.matches) document.body.classList.remove('light-theme');
+            else document.body.classList.add('light-theme');
           };
           mediaQuery.addEventListener('change', handler);
           return () => mediaQuery.removeEventListener('change', handler);
         }
       }, [theme]);
 
-      // Use our custom hook to get live stream with history
       useDerivStream(
         symbol,
-        // onTick
         (rawPrice, timestamp) => {
           const formatted = rawPrice.toFixed(DECIMAL_PLACES[symbol] || 3);
           const digit = getLastDigitFromPrice(formatted);
@@ -1125,7 +1070,6 @@
             return next.length > maxTicks ? next.slice(next.length - maxTicks) : next;
           });
         },
-        // onHistory
         (initialTicks) => {
           const newDigits = [];
           const newPrices = [];
@@ -1148,24 +1092,18 @@
         }
       );
 
-      // Update history snapshots every 10 ticks
       useEffect(() => {
         if (digits.length === 0) return;
         if (digits.length % 10 === 0 && digits.length > lastSnapshotLength.current) {
           lastSnapshotLength.current = digits.length;
           const freqs = computeDigitFrequency(digits).map(f => f.percentage);
-          setFreqHistory(prev => {
-            const updated = [...prev, freqs];
-            return updated.slice(-30);
-          });
+          setFreqHistory(prev => [...prev, freqs].slice(-30));
         }
       }, [digits]);
 
-      // Compute frequencies
       const frequencyAll = useMemo(() => computeFrequency(digits), [digits]);
       const digits1000 = useMemo(() => keepLastN(digits, 1000), [digits]);
       const frequency1000 = useMemo(() => computeFrequency(digits1000), [digits1000]);
-
       const overUnder = useMemo(() => computeOverUnder(digits), [digits]);
       const matchDiffer = useMemo(() => computeMatchDiffer(digits), [digits]);
       const evenOdd = useMemo(() => computeEvenOdd(digits), [digits]);
@@ -1173,7 +1111,6 @@
 
       const selectedLabel = VOLATILITY_SYMBOLS.find(s => s.value === symbol)?.label || symbol;
       const currentDigit = digits.length > 0 ? digits[digits.length - 1] : null;
-
       const currentStreak = useMemo(() => {
         if (digits.length === 0) return 0;
         let streak = 1;
@@ -1183,7 +1120,6 @@
         }
         return streak;
       }, [digits]);
-
       const getStreakColor = (streak) => {
         if (streak === 1) return 'text-profit';
         if (streak === 2) return 'text-white';
@@ -1206,13 +1142,9 @@
       }, [recentDigits]);
 
       const totalTicks = digits.length;
-
-      // Determine ranks for each digit (for coloring)
       const sortedForRanks = [...frequencyAll].sort((a, b) => b.percentage - a.percentage);
       const rankMap = new Map();
-      sortedForRanks.forEach((entry, idx) => {
-        rankMap.set(entry.digit, idx + 1); // 1 = highest, 2 = second, ... 10 = lowest
-      });
+      sortedForRanks.forEach((entry, idx) => rankMap.set(entry.digit, idx + 1));
       const getRank = (digit) => {
         const rank = rankMap.get(digit);
         if (rank === 1) return 1;
@@ -1221,8 +1153,6 @@
         if (rank === 9) return -2;
         return 0;
       };
-
-      // Split digits into two groups
       const upperDigits = frequencyAll.filter(f => f.digit <= 4);
       const lowerDigits = frequencyAll.filter(f => f.digit >= 5);
 
@@ -1273,103 +1203,47 @@
 
             {digits.length > 0 && (
               <>
-                {/* Range Dominance Scanner with 1.2% threshold */}
                 <RangeDominanceScanner digits1000={digits1000} />
-
-                {/* AI Prediction Card */}
                 <AIPrediction digits={digits} />
-
                 <SuggestionCard frequency={frequency1000} />
-
                 <SignalScanner digits1000={digits1000} lastDigit={currentDigit} />
-
-                {/* Large last digit display with dynamic color based on streak */}
                 <div className="text-6xl md:text-7xl font-bold text-center py-4 border border-profit/30 rounded-lg bg-profit/5">
-                  <span className={getStreakColor(currentStreak)}>
-                    {lastPrice ? getLastDigitFromPrice(lastPrice) : '--'}
-                  </span>
+                  <span className={getStreakColor(currentStreak)}>{lastPrice ? getLastDigitFromPrice(lastPrice) : '--'}</span>
                 </div>
-                <div className="text-xs text-muted-foreground text-center mt-1">
-                  Last Digit {currentStreak > 1 ? `(streak: ${currentStreak})` : ''}
-                </div>
-
+                <div className="text-xs text-muted-foreground text-center mt-1">Last Digit {currentStreak > 1 ? `(streak: ${currentStreak})` : ''}</div>
                 <RiseFallCard data={riseFall} />
-
                 <RecentMovements prices={prices} />
-
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <AnalysisCard 
-                    title="Over / Under" 
-                    subtitle={`Probability per digit barrier — Current price: ${lastPrice ? lastPrice : '--'}`}
-                  >
+                  <AnalysisCard title="Over / Under" subtitle={`Probability per digit barrier — Current price: ${lastPrice ? lastPrice : '--'}`}>
                     <OverUnderTable data={overUnder} />
                   </AnalysisCard>
-
-                  <AnalysisCard 
-                    title="Matches / Differs" 
-                    subtitle={`Match & differ probability per digit — Current price: ${lastPrice ? lastPrice : '--'}`}
-                  >
+                  <AnalysisCard title="Matches / Differs" subtitle={`Match & differ probability per digit — Current price: ${lastPrice ? lastPrice : '--'}`}>
                     <MatchDifferTable data={matchDiffer} />
                   </AnalysisCard>
-
-                  <AnalysisCard 
-                    title="Even / Odd" 
-                    subtitle={`Even vs odd distribution — Current price: ${lastPrice ? lastPrice : '--'}`}
-                  >
+                  <AnalysisCard title="Even / Odd" subtitle={`Even vs odd distribution — Current price: ${lastPrice ? lastPrice : '--'}`}>
                     <EvenOddDisplay data={evenOdd} />
                   </AnalysisCard>
                 </div>
-
-                {/* Even/Odd Signal Scanner with new color-coded conditions */}
-                <EvenOddSignalScanner
-                  digits1000={digits1000}
-                  threshold={threshold}
-                  setThreshold={setThreshold}
-                  minCount={minCount}
-                  setMinCount={setMinCount}
-                />
-
-                {/* Digit Frequency circles moved below Even/Odd Scanner with new colors */}
+                <EvenOddSignalScanner digits1000={digits1000} threshold={threshold} setThreshold={setThreshold} minCount={minCount} setMinCount={setMinCount} />
                 <AnalysisCard title="Digit Frequency" subtitle={`${selectedLabel} — ${totalTicks} ticks (expected 10.0% each)`}>
                   <div className="flex flex-col items-center space-y-4">
                     <div className="flex justify-center flex-wrap gap-2">
-                      {upperDigits.map((f) => (
-                        <DigitCircle
-                          key={f.digit}
-                          digit={f.digit}
-                          percentage={f.percentage}
-                          rank={getRank(f.digit)}
-                          isCurrent={currentDigit === f.digit}
-                        />
-                      ))}
+                      {upperDigits.map(f => <DigitCircle key={f.digit} digit={f.digit} percentage={f.percentage} rank={getRank(f.digit)} isCurrent={currentDigit === f.digit} />)}
                     </div>
                     <div className="flex justify-center flex-wrap gap-2">
-                      {lowerDigits.map((f) => (
-                        <DigitCircle
-                          key={f.digit}
-                          digit={f.digit}
-                          percentage={f.percentage}
-                          rank={getRank(f.digit)}
-                          isCurrent={currentDigit === f.digit}
-                        />
-                      ))}
+                      {lowerDigits.map(f => <DigitCircle key={f.digit} digit={f.digit} percentage={f.percentage} rank={getRank(f.digit)} isCurrent={currentDigit === f.digit} />)}
                     </div>
                   </div>
                 </AnalysisCard>
-
                 <AnalysisCard title="Recent Digits" subtitle="Last 50 ticks (newest first) — Yellow ring indicates consecutive same digit">
                   <div className="flex flex-wrap gap-1.5">
                     {recentDigits.map((d, i) => (
-                      <span key={i} className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold 
-                        ${d % 2 === 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}
-                        ${consecutiveFlags[i] ? "ring-2 ring-yellow-400 ring-inset" : ""}
-                      `}>
+                      <span key={i} className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold ${d % 2 === 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"} ${consecutiveFlags[i] ? "ring-2 ring-yellow-400 ring-inset" : ""}`}>
                         {d}
                       </span>
                     ))}
                   </div>
                 </AnalysisCard>
-
                 <TradePredictions frequency1000={frequency1000} overUnder={overUnder} evenOdd={evenOdd} riseFall={riseFall} />
               </>
             )}
